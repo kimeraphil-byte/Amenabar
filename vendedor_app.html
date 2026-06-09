@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Amenabar — Vendedor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ====== CONFIGURAR SUPABASE AQUI ====== */
+  /* Ver instrucciones en el archivo SETUP.md */
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --brand: #6366f1;
+    --brand-dark: #4f46e5;
+    --green: #059669;
+    --red: #dc2626;
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --border: #e5e7eb;
+    --text: #1a1a2e;
+    --muted: #6b7280;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* === SCREENS === */
+  .screen { display: none; min-height: 100vh; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* === LOGIN === */
+  #screen-login { background: linear-gradient(135deg, #1a1a2e 0%, #2d2d5e 100%); align-items: center; justify-content: center; padding: 32px 24px; }
+  .login-logo { text-align: center; margin-bottom: 40px; }
+  .login-logo h1 { font-size: 28px; font-weight: 800; color: #fff; }
+  .login-logo p { color: rgba(255,255,255,0.6); font-size: 14px; margin-top: 4px; }
+  .login-card { background: #fff; border-radius: 20px; padding: 28px; width: 100%; max-width: 360px; }
+  .login-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .vendor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .vendor-btn { padding: 16px 12px; border: 2px solid var(--border); border-radius: 12px; background: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .vendor-btn:active, .vendor-btn.selected { border-color: var(--brand); background: #eef2ff; color: var(--brand); }
+  .vendor-icon { font-size: 24px; display: block; margin-bottom: 4px; }
+  .btn-login { width: 100%; padding: 16px; background: var(--brand); color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .btn-login:active { background: var(--brand-dark); }
+  .btn-login:disabled { opacity: 0.5; }
+
+  /* === HEADER === */
+  .app-header { background: var(--brand); color: #fff; padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-title { font-size: 17px; font-weight: 700; }
+  .header-sub { font-size: 12px; opacity: 0.8; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; }
+  .sync-dot.offline { background: #fbbf24; }
+  .logout-btn { background: rgba(255,255,255,0.2); border: none; color: #fff; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+  /* === TABS === */
+  .tabs { background: #fff; display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 90; }
+  .tab { flex: 1; padding: 12px 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
+
+  /* === CONTENT === */
+  .content { flex: 1; padding: 16px; overflow-y: auto; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* === CARDS === */
+  .section-card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .section-title { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
+
+  /* === FORM === */
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .form-input { width: 100%; padding: 13px 14px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 15px; color: var(--text); background: #fff; outline: none; -webkit-appearance: none; }
+  .form-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+  .form-input.error { border-color: var(--red); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* === TOGGLE === */
+  .toggle-group { display: flex; background: #f3f4f6; border-radius: 10px; padding: 3px; gap: 2px; }
+  .toggle-opt { flex: 1; padding: 10px 6px; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border-radius: 8px; transition: all 0.15s; }
+  .toggle-opt.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  /* === PRODUCT SEARCH === */
+  .product-search-wrap { position: relative; }
+  .product-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1.5px solid var(--brand); border-top: none; border-radius: 0 0 12px 12px; max-height: 240px; overflow-y: auto; z-index: 200; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .product-dropdown.open { display: block; }
+  .prod-item { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .prod-item:active { background: #f0f4ff; }
+  .prod-item-name { font-size: 13px; font-weight: 500; }
+  .prod-item-price { font-size: 13px; font-weight: 700; color: var(--brand); }
+
+  /* === ITEMS LIST === */
+  .items-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .item-row { background: #f9fafb; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+  .item-name { flex: 1; font-size: 13px; font-weight: 500; line-height: 1.3; }
+  .item-qty-wrap { display: flex; align-items: center; gap: 6px; }
+  .qty-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--brand); color: #fff; font-size: 18px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+  .qty-btn.minus { background: #f3f4f6; color: var(--text); }
+  .qty-num { width: 36px; text-align: center; font-size: 15px; font-weight: 700; }
+  .item-subtotal { font-size: 13px; font-weight: 700; color: var(--green); min-width: 72px; text-align: right; }
+  .item-del { width: 24px; height: 24px; border-radius: 6px; border: none; background: #fee2e2; color: var(--red); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  /* === TOTAL BAR === */
+  .total-bar { background: linear-gradient(135deg, var(--brand), var(--brand-dark)); border-radius: 14px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .total-label { color: rgba(255,255,255,0.8); font-size: 13px; font-weight: 600; }
+  .total-amount { color: #fff; font-size: 22px; font-weight: 800; }
+
+  /* === SUBMIT BTN === */
+  .btn-submit { width: 100%; padding: 17px; background: var(--green); color: #fff; border: none; border-radius: 14px; font-size: 16px; font-weight: 800; cursor: pointer; transition: all 0.15s; letter-spacing: 0.2px; }
+  .btn-submit:active { transform: scale(0.98); }
+  .btn-submit:disabled { opacity: 0.6; }
+
+  /* === PEDIDOS LIST === */
+  .pedido-card { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 4px solid var(--border); }
+  .pedido-card.pagado { border-left-color: var(--green); }
+  .pedido-card.pendiente { border-left-color: #fbbf24; }
+  .pedido-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .pedido-cliente { font-size: 15px; font-weight: 700; }
+  .pedido-monto { font-size: 18px; font-weight: 800; color: var(--brand); }
+  .pedido-meta { font-size: 12px; color: var(--muted); display: flex; gap: 12px; }
+  .badge { display: inline-block; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .badge-green { background: #d1fae5; color: var(--green); }
+  .badge-yellow { background: #fef3c7; color: #d97706; }
+  .badge-red { background: #fee2e2; color: var(--red); }
+
+  /* === STATS === */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: var(--card); border-radius: 14px; padding: 16px; text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.07); }
+  .stat-value { font-size: 22px; font-weight: 800; color: var(--brand); }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; text-transform: uppercase; }
+
+  /* === TOAST === */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 14px; font-weight: 600; z-index: 999; display: none; white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+  .toast.show { display: block; animation: slideup 0.2s ease; }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+  @keyframes slideup { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+
+  /* === LOADING === */
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: var(--brand); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  
+  .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  /* === GPS === */
+  .gps-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .btn-gps { flex: 1; padding: 11px 14px; border: 1.5px solid var(--brand); border-radius: 10px; background: #eef2ff; color: var(--brand); font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-gps:active { background: var(--brand); color: #fff; }
+  .btn-gps:disabled { opacity: 0.5; cursor: not-allowed; }
+  .gps-badge { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 99px; white-space: nowrap; }
+  .gps-none  { background: #fef3c7; color: #d97706; }
+  .gps-saved { background: #d1fae5; color: var(--green); }
+  .gps-loading { background: #e0e7ff; color: var(--brand); }
+  .gps-already { background: #d1fae5; color: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="screen active" id="screen-login">
+  <div class="login-logo">
+    <h1>🏪 Amenabar</h1>
+    <p>Sistema de Pedidos</p>
+  </div>
+  <div class="login-card">
+    <h2>¿Quién sos?</h2>
+    <div class="vendor-grid" id="vendor-grid">
+      <button class="vendor-btn" onclick="selectVendor('Mariano',this)">
+        <span class="vendor-icon">👨‍💼</span>Mariano
+      </button>
+      <button class="vendor-btn" onclick="selectVendor('Pablo',this)">
+        <span class="vendor-icon">👨‍💼</span>Pablo
+      </button>
+      <button class="vendor-btn" onclick="selectVendor('Jordi',this)">
+        <span class="vendor-icon">👨‍💼</span>Jordi
+      </button>
+      <button class="vendor-btn" onclick="selectVendor('Admin',this)">
+        <span class="vendor-icon">🔑</span>Admin
+      </button>
+    </div>
+    <button class="btn-login" id="btn-login" onclick="doLogin()" disabled>Entrar</button>
+  </div>
+</div>
+
+<!-- APP SCREEN -->
+<div class="screen" id="screen-app">
+  <div class="app-header">
+    <div>
+      <div class="header-title" id="header-title">Vendedor</div>
+      <div class="header-sub" id="header-date"></div>
+    </div>
+    <div class="header-right">
+      <div class="sync-dot" id="sync-dot"></div>
+      <button class="logout-btn" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+  
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('nuevo',this)">📝 Nuevo pedido</div>
+    <div class="tab" onclick="showTab('mispedidos',this)">📦 Mis pedidos</div>
+    <div class="tab" onclick="showTab('resumen',this)">📊 Resumen</div>
+  </div>
+
+  <div class="content">
+    
+    <!-- TAB: NUEVO PEDIDO -->
+    <div class="tab-content active" id="tab-nuevo">
+      <div class="section-card">
+        <div class="section-title">Cliente</div>
+        <div class="form-group">
+          <label class="form-label">Nombre del cliente</label>
+          <input type="text" class="form-input" id="inp-cliente" placeholder="Buscar cliente..."
+                 oninput="searchCliente(this.value)" onchange="checkClienteUbicacion(this.value)"
+                 autocomplete="off" list="clientes-datalist">
+          <datalist id="clientes-datalist"></datalist>
+          <div class="gps-row">
+            <button class="btn-gps" id="btn-gps" onclick="captureGPS()">📍 Capturar ubicación</button>
+            <span class="gps-badge gps-none" id="gps-badge">Sin ubicación</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">Productos</div>
+        <div class="form-group">
+          <label class="form-label">Buscar y agregar producto</label>
+          <div class="product-search-wrap">
+            <input type="text" class="form-input" id="inp-prod-search" placeholder="Ej: aceite, leche, coca..." 
+                   oninput="searchProductos(this.value)" onfocus="searchProductos(this.value)" autocomplete="off">
+            <div class="product-dropdown" id="prod-dropdown"></div>
+          </div>
+        </div>
+        <div class="items-list" id="items-list">
+          <div class="empty" id="items-empty">
+            <div class="empty-icon">🛒</div>
+            <div class="empty-text">Todavía no agregaste productos</div>
+          </div>
+        </div>
+        <div class="total-bar" id="total-bar" style="display:none">
+          <div>
+            <div class="total-label">Total del pedido</div>
+          </div>
+          <div class="total-amount" id="total-amount">$ 0</div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-title">Pago</div>
+        <div class="form-group">
+          <label class="form-label">Forma de pago</label>
+          <div class="toggle-group">
+            <div class="toggle-opt active" onclick="setFormaPago('efectivo',this)">💵 Efectivo</div>
+            <div class="toggle-opt" onclick="setFormaPago('transferencia',this)">📲 Transferencia</div>
+            <div class="toggle-opt" onclick="setFormaPago('mixto',this)">🔀 Mixto</div>
+          </div>
+        </div>
+        <div id="pago-mixto" style="display:none">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Efectivo $</label>
+              <input type="number" class="form-input" id="inp-efectivo" placeholder="0" oninput="calcMixto()">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Transferencia $</label>
+              <input type="number" class="form-input" id="inp-transferencia" placeholder="0" oninput="calcMixto()">
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">¿Pagado?</label>
+          <div class="toggle-group">
+            <div class="toggle-opt active" onclick="setPagado('Si',this)">✅ Sí, cobrado</div>
+            <div class="toggle-opt" onclick="setPagado('No',this)">⏳ Pendiente</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observaciones</label>
+          <input type="text" class="form-input" id="inp-obs" placeholder="Ej: dejar en el depósito...">
+        </div>
+      </div>
+
+      <button class="btn-submit" id="btn-submit" onclick="submitPedido()">
+        ✅ Confirmar pedido
+      </button>
+      <div style="height:24px"></div>
+    </div>
+
+    <!-- TAB: MIS PEDIDOS -->
+    <div class="tab-content" id="tab-mispedidos">
+      <div id="mis-pedidos-list">
+        <div class="loading"><div class="spinner"></div>Cargando...</div>
+      </div>
+    </div>
+
+    <!-- TAB: RESUMEN -->
+    <div class="tab-content" id="tab-resumen">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-value" id="stat-pedidos">0</div><div class="stat-label">Pedidos hoy</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-total">$0</div><div class="stat-label">Total hoy</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-cobrado">$0</div><div class="stat-label">Cobrado</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-pendiente">$0</div><div class="stat-label">Pendiente</div></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Comisión del día (2%)</div>
+        <div style="font-size:32px;font-weight:800;color:var(--green);text-align:center;padding:12px 0" id="stat-comision">$0</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =============================================
+//   CONFIGURACIÓN SUPABASE
+//   Reemplazá estos valores con los de tu proyecto
+// =============================================
+const SUPABASE_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
+// =============================================
+
+const CLIENTES = ["Adriana Piccolo", "Aldana Gutierrez", "Aldo FT", "Ana Pedretti", "Angel", "Angel Simon", "Angel Simón", "Angie Pedretti", "Anita Bregant", "Belén Calcaterra", "Bruno Martinez", "Candela Bracamonte", "Carniceria Los Abuelos", "Carnicería Cayetano", "Carnicería Los Abuelos", "Casa Pilu", "Cloro Mas", "Club America", "Club América", "Complejo La Gloria", "Complejo Santander", "David VF", "Despensa AyG", "Distincion", "Dulce Melocotón", "Elo Zaccone", "Ema Cimino", "Ema Gommaid", "Eva Diaz", "Eze Cimino", "Facundo Gadioles", "Franca Rosano", "Franco Santoro (Pizzana)", "Gabi Mareco", "Gaston VF", "Gisela Barrera", "Graciela", "Jonatan", "Joni Casañas", "Jordi Quintana", "Juan Cruz Ferrarello", "Juan Macharetti", "Julia´s Bar", "Karen", "Karina", "Kiosco 24/7", "Kiosko 24/7", "La Bartola", "Lalo Bufarini", "Lamar", "Leo Torres", "Leonor Fernandez", "Los Fletitas", "Los Gringos", "Marcelo Fernandez", "Mariano O'Shea", "Mariela Muller", "Mariela Müller", "Marisel", "Marta Simon", "Marta Simón", "Marta Soto", "Martin Docena", "Mica Storni", "Pablo Diaz", "Pablo Díaz", "Pablo Rebelino", "Padel San Andres", "Panaderia Susy", "Panadería Susy", "Pipi's", "Pollería Gadioles", "Pollería Independencia", "Rodrigo Cordido", "Rodrigo Córdido", "Romina Sequeira", "Ruben Ezzati", "Rubén Ezzati", "Sabrina Luna", "Seba Gilardoni", "Sebastian Lerda", "Silvia Abo Hamed", "Silvio PC", "Solange Vega", "Stella"];
+const PRODUCTOS = [{"desc": "9 DE ORO AGRIDULCES X 200 G", "precio": 855.75, "rubro": "ALIMENTOS"}, {"desc": "9 DE ORO AZUCARADAS X 200 G", "precio": 855.75, "rubro": "ALIMENTOS"}, {"desc": "9 DE ORO CLASICAS X 200 G", "precio": 855.75, "rubro": "ALIMENTOS"}, {"desc": "ACEITE LEGITIMO X 1.5 L", "precio": 4004.7, "rubro": "ALIMENTOS"}, {"desc": "ACEITE LEGITIMO X 900 ML", "precio": 2502.15, "rubro": "ALIMENTOS"}, {"desc": "ACEITE NATURA X 1.5 LT", "precio": 4780.65, "rubro": "ALIMENTOS"}, {"desc": "ACEITE NATURA X 900 ML", "precio": 2695.35, "rubro": "ALIMENTOS"}, {"desc": "ARROZ GALLO ORO BOLSA X 1 KG", "precio": 1583.4, "rubro": "ALIMENTOS"}, {"desc": "ARROZ GALLO ORO X 500 G", "precio": 884.1, "rubro": "ALIMENTOS"}, {"desc": "ARROZ LUCCHETTI LF X 1 KG", "precio": 1228.5, "rubro": "ALIMENTOS"}, {"desc": "ARROZ LUCCHETTI LF X 500 G", "precio": 615.3, "rubro": "ALIMENTOS"}, {"desc": "ARROZ MOCOVI LARGO FINO X 1 KG", "precio": 809.55, "rubro": "ALIMENTOS"}, {"desc": "ARROZ MOCOVI LARGO FINO X 500 G", "precio": 425.25, "rubro": "ALIMENTOS"}, {"desc": "ARROZ VINCHA DE ORO LARGO FINO 1 KG", "precio": 703.5, "rubro": "ALIMENTOS"}, {"desc": "ARVEJAS INALPA X 350 G", "precio": 462.0, "rubro": "ALIMENTOS"}, {"desc": "ATUN DESM ACEI Y AGUA BAHIA 170 G", "precio": 1027.95, "rubro": "ALIMENTOS"}, {"desc": "ATUN DESM NATURAL BAHIA 170 G", "precio": 1027.95, "rubro": "ALIMENTOS"}, {"desc": "AZUCAR CHANGO X 1KG", "precio": 1200.15, "rubro": "ALIMENTOS"}, {"desc": "AZUCAR DON HECTOR X 1KG", "precio": 934.5, "rubro": "ALIMENTOS"}, {"desc": "BIZCOCH DON SATUR AZUCAR X 200 G", "precio": 728.7, "rubro": "ALIMENTOS"}, {"desc": "BIZCOCH DON SATUR GRASA X 200 G", "precio": 728.7, "rubro": "ALIMENTOS"}, {"desc": "BIZCOCH DON SATUR NEGRO X 200 G", "precio": 728.7, "rubro": "ALIMENTOS"}, {"desc": "CAFE ARLISTAN SUAVE MAS AROMA X 170 GR", "precio": 5575.5, "rubro": "ALIMENTOS"}, {"desc": "CAFE EN SAQ LA VIRGINIA 20 U X 5 G", "precio": 3110.1, "rubro": "ALIMENTOS"}, {"desc": "CAFE LA VIRGINIA INST CLAS X 100 G", "precio": 3478.65, "rubro": "ALIMENTOS"}, {"desc": "CAFE LA VIRGINIA INST SUAVE 100 G", "precio": 3478.65, "rubro": "ALIMENTOS"}, {"desc": "CAFE LA VIRGINIA MOLIDO TORRADO X 250 G", "precio": 3685.5, "rubro": "ALIMENTOS"}, {"desc": "CAFE LA VIRGINIA MOLIDO TORRADO X 500 G", "precio": 8310.75, "rubro": "ALIMENTOS"}, {"desc": "CHAMPIGNONES BAHIA TROZOS X 400 G", "precio": 2138.85, "rubro": "ALIMENTOS"}, {"desc": "CHAMPIGNONES ENT BAHIA X 400 G", "precio": 2418.15, "rubro": "ALIMENTOS"}, {"desc": "CHOCLO AMAR GRANOS INALPA 300 GR", "precio": 937.65, "rubro": "ALIMENTOS"}, {"desc": "DURAZNO VIGENTE x 820 G", "precio": 1354.5, "rubro": "ALIMENTOS"}, {"desc": "EDULCORANTE SI DIET X 250ML", "precio": 1014.3, "rubro": "ALIMENTOS"}, {"desc": "EDULCORANTE SI DIET X 600ML", "precio": 1876.35, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS LUCCHETTI CODITOS X500G", "precio": 998.55, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS LUCCHETTI PENNE RIGATE N 45 X500G", "precio": 887.25, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS LUCCHETTI SPAGHETTI N 7 X500G", "precio": 895.65, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS LUCCHETTI TALLARIN N 5 X500G", "precio": 887.25, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS MATARAZZO MOSTAC Nº 52 X 500 G", "precio": 1094.1, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS MATARAZZO PENNE RIG Nº 52 X 500 G", "precio": 1094.1, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS MATARAZZO SPAGHETTI N°3 X 500 G", "precio": 1094.1, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS MATARAZZO TALLARIN N°5", "precio": 1094.1, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS MATARAZZO TIRABUZON N°28 X 500 G", "precio": 1094.1, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS TERRABUSI SPAGHETTI N°3 X 500 G", "precio": 738.15, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS TERRABUSI TALLARINES Nº 7 X 500 G", "precio": 738.15, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS TERRABUSSI CODITO X 500 G", "precio": 738.15, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS TERRABUSSI FUSILLI X 500 G", "precio": 738.15, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS TERRABUSSI MOSTACHOL RAY X 500 G", "precio": 738.15, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA CODO X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA MOSTACHOL X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA RIGATONI X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA SPAGHETTI X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA TALLARIN X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "FIDEOS VERIZZIA TIRABUZON X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "GALLETITA PROVIDENCIA X 3 U", "precio": 827.4, "rubro": "ALIMENTOS"}, {"desc": "GARBANZOS INALPA X 300 G", "precio": 581.7, "rubro": "ALIMENTOS"}, {"desc": "HARINA 000 ESTUPENDA X KG", "precio": 540.75, "rubro": "ALIMENTOS"}, {"desc": "HARINA 0000 ESTUPENDA X KG", "precio": 676.2, "rubro": "ALIMENTOS"}, {"desc": "HARINA DE MAIZ LA ABADIA X 500 G", "precio": 485.1, "rubro": "ALIMENTOS"}, {"desc": "HARINA LEUDANTE ESTUPENDA X KG", "precio": 811.65, "rubro": "ALIMENTOS"}, {"desc": "HOJALMAR PALMERITAS X 150GS", "precio": 1222.2, "rubro": "ALIMENTOS"}, {"desc": "HOJALMAR TRIANGULITOS X 150 G", "precio": 924.0, "rubro": "ALIMENTOS"}, {"desc": "HOJALMAR TRIANGULITOS X 250 G", "precio": 1443.75, "rubro": "ALIMENTOS"}, {"desc": "JARDINERA INALPA X 300 G", "precio": 611.1, "rubro": "ALIMENTOS"}, {"desc": "KETCHUP HELLM X 250 G", "precio": 1111.95, "rubro": "ALIMENTOS"}, {"desc": "KETCHUP HELLM X 500 G", "precio": 2751.0, "rubro": "ALIMENTOS"}, {"desc": "LECHE BAGGIO DESC CAJA X 1LT", "precio": 1306.2, "rubro": "ALIMENTOS"}, {"desc": "LECHE BAGGIO ENT CAJA X 1LT", "precio": 1306.2, "rubro": "ALIMENTOS"}, {"desc": "LECHE CHOC TREGAR X 1 LT", "precio": 2108.4, "rubro": "ALIMENTOS"}, {"desc": "LECHE TREGAR DESC CAJA X 1LT", "precio": 1461.6, "rubro": "ALIMENTOS"}, {"desc": "LECHE TREGAR ENT CAJA X 1LT", "precio": 1461.6, "rubro": "ALIMENTOS"}, {"desc": "LENTEJAS INALPA X 300 G", "precio": 858.9, "rubro": "ALIMENTOS"}, {"desc": "LENTEJAS LA ABADIA X 400 G", "precio": 935.55, "rubro": "ALIMENTOS"}, {"desc": "LENTEJONES LA ABADIA X 400 G", "precio": 1476.3, "rubro": "ALIMENTOS"}, {"desc": "LOMITO ATUN ACEITE BAHIA 170 G", "precio": 2080.05, "rubro": "ALIMENTOS"}, {"desc": "LOMITO ATUN NAT BAHIA 170 G", "precio": 2080.05, "rubro": "ALIMENTOS"}, {"desc": "MAGDALENAS DON SATUR CHIPS X 140 G", "precio": 1347.15, "rubro": "ALIMENTOS"}, {"desc": "MAGDALENAS DON SATUR CHOC DDL X 140 G", "precio": 1347.15, "rubro": "ALIMENTOS"}, {"desc": "MAGDALENAS DON SATUR MARMOLADAS X 140 G", "precio": 1347.15, "rubro": "ALIMENTOS"}, {"desc": "MAGDALENAS DON SATUR R/DDL X 250 G", "precio": 1347.15, "rubro": "ALIMENTOS"}, {"desc": "MAGDALENAS DON SATUR VAINILLA X 140 G", "precio": 1347.15, "rubro": "ALIMENTOS"}, {"desc": "MAIZ PISINGALLO LA ABADIA X 400 G", "precio": 550.2, "rubro": "ALIMENTOS"}, {"desc": "MATE COCIDO PLAYADITO X 25 SOBRES", "precio": 791.7, "rubro": "ALIMENTOS"}, {"desc": "MATE COCIDO PLAYADITO X 50 SOBRES", "precio": 1504.65, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA CADA DIA LIVIANA X 1KG", "precio": 1741.95, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA CADA DIA LIVIANA X 250 G", "precio": 463.05, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA CADA DIA LIVIANA X 500 G", "precio": 898.8, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA HELLMANNS X 237 G", "precio": 666.75, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA HELLMANNS X 500 G", "precio": 1286.25, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA HELLMANNS X 950 G", "precio": 3180.45, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA NATURA X 1KG", "precio": 4568.55, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA NATURA X 250 CC", "precio": 1189.65, "rubro": "ALIMENTOS"}, {"desc": "MAYONESA NATURA X 500 GS", "precio": 2329.95, "rubro": "ALIMENTOS"}, {"desc": "MERMELADAS DULCOR CIRUELA X 500", "precio": 1017.45, "rubro": "ALIMENTOS"}, {"desc": "MERMELADAS DULCOR DAMASCO X 500", "precio": 1017.45, "rubro": "ALIMENTOS"}, {"desc": "MERMELADAS DULCOR DURAZNO X 500", "precio": 1017.45, "rubro": "ALIMENTOS"}, {"desc": "MERMELADAS DULCOR NARANJA X 500", "precio": 1017.45, "rubro": "ALIMENTOS"}, {"desc": "MERMELADAS DULCOR ZAPALLO X 500", "precio": 1017.45, "rubro": "ALIMENTOS"}, {"desc": "OREO X 118 GR", "precio": 1208.55, "rubro": "ALIMENTOS"}, {"desc": "PEPITOS X 119 G", "precio": 1128.75, "rubro": "ALIMENTOS"}, {"desc": "PICADILLO CARNE CHANGUITO X 90 G", "precio": 527.1, "rubro": "ALIMENTOS"}, {"desc": "PICADILLO CARNE SWIFT X 90 G", "precio": 798.0, "rubro": "ALIMENTOS"}, {"desc": "PITUSAS CHOCOLATE X 300 G", "precio": 1350.3, "rubro": "ALIMENTOS"}, {"desc": "PITUSAS FRUTILLA X 300 G", "precio": 1350.3, "rubro": "ALIMENTOS"}, {"desc": "PITUSAS VAINILLA X 300 G", "precio": 1350.3, "rubro": "ALIMENTOS"}, {"desc": "PURE DE TOMATE LA HUERTA X 1 KG", "precio": 1189.65, "rubro": "ALIMENTOS"}, {"desc": "PURE DE TOMATE LA HUERTA X 530 G", "precio": 736.05, "rubro": "ALIMENTOS"}, {"desc": "SAL CELUSAL GRUESA X 500G", "precio": 698.77, "rubro": "ALIMENTOS"}, {"desc": "SAL CELUSAL PAQUETE X 500 G", "precio": 885.15, "rubro": "ALIMENTOS"}, {"desc": "SAL CELUSAL PARRILLERA X 500G", "precio": 805.35, "rubro": "ALIMENTOS"}, {"desc": "SAL FINA CELUSAL CAJA X 500 G", "precio": 894.6, "rubro": "ALIMENTOS"}, {"desc": "SAL RINSAL ENTREFINA X 1 KG", "precio": 750.75, "rubro": "ALIMENTOS"}, {"desc": "SAL RINSAL FINA X 500 G", "precio": 483.0, "rubro": "ALIMENTOS"}, {"desc": "SAL RINSAL GRUESA X 1 KG", "precio": 727.65, "rubro": "ALIMENTOS"}, {"desc": "SALSA GOLF HELLMANNS X 250 G", "precio": 1739.85, "rubro": "ALIMENTOS"}, {"desc": "SAVORA ORIGINAL DP X 250 G", "precio": 723.45, "rubro": "ALIMENTOS"}, {"desc": "SAVORA ORIGINAL DP X 500 G", "precio": 1348.2, "rubro": "ALIMENTOS"}, {"desc": "TE LA VIRGINIA S/TACC X 25 U", "precio": 661.5, "rubro": "ALIMENTOS"}, {"desc": "TOMATE TRITURADO LOS POLACOS BOT X 1 KG", "precio": 1011.15, "rubro": "ALIMENTOS"}, {"desc": "TOMATES PERITAS VIGENTE X 400 G", "precio": 525.0, "rubro": "ALIMENTOS"}, {"desc": "VARIEDAD TERRABUSI X 390G", "precio": 1754.55, "rubro": "ALIMENTOS"}, {"desc": "VINAGRE DE ALCOHOL MENOYO X 1 L", "precio": 968.1, "rubro": "ALIMENTOS"}, {"desc": "VINAGRE HALCONERO X 930 ML", "precio": 717.15, "rubro": "ALIMENTOS"}, {"desc": "YERBA AMANDA X 1 KG", "precio": 2697.27, "rubro": "ALIMENTOS"}, {"desc": "YERBA AMANDA X 500 G", "precio": 1434.39, "rubro": "ALIMENTOS"}, {"desc": "YERBA ANDRESITO X 1 KG", "precio": 2158.8, "rubro": "ALIMENTOS"}, {"desc": "YERBA ANDRESITO X 500 G", "precio": 1144.5, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE HIERB SERRANAS X 1 KG", "precio": 2500.05, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE HIERBAS SERRANAS X 500 KG", "precio": 1307.25, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE LIMON X 500 KG", "precio": 1307.25, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE POMELO X 500 KG", "precio": 1307.25, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE SILUETA CORM X 500 KG", "precio": 1307.25, "rubro": "ALIMENTOS"}, {"desc": "YERBA CBSE SILUETA NARANJA X 500 KG", "precio": 1307.25, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED BARBACUA x 500 G", "precio": 3081.75, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED CAMPO & MONTE X 500 G", "precio": 3081.75, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED CAMPO SUR X 1KG", "precio": 4116.0, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED CAMPO SUR X 500 G", "precio": 3081.75, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED CAMPO X 500 G", "precio": 3081.75, "rubro": "ALIMENTOS"}, {"desc": "YERBA LA MERCED DE MONTE X 500 G", "precio": 3081.75, "rubro": "ALIMENTOS"}, {"desc": "YERBA MAÑANITA X 1KG", "precio": 2948.4, "rubro": "ALIMENTOS"}, {"desc": "YERBA MAÑANITA X 500 G", "precio": 1503.6, "rubro": "ALIMENTOS"}, {"desc": "YERBA PLAYADITO DESPALADA X 500 G", "precio": 2338.35, "rubro": "ALIMENTOS"}, {"desc": "YERBA PLAYADITO SUAVE X 1KG", "precio": 3066.0, "rubro": "ALIMENTOS"}, {"desc": "YERBA PLAYADITO SUAVE X 500 G", "precio": 1639.05, "rubro": "ALIMENTOS"}, {"desc": "YERBA ROSAMONTE X 1KG", "precio": 2417.1, "rubro": "ALIMENTOS"}, {"desc": "YERBA ROSAMONTE X 500 G", "precio": 1274.7, "rubro": "ALIMENTOS"}, {"desc": "YERBA TARAGUI FLEX ROJA X 500 G", "precio": 1503.6, "rubro": "ALIMENTOS"}, {"desc": "YERBA TARAGUI FLEX X 1KG", "precio": 2948.4, "rubro": "ALIMENTOS"}, {"desc": "YERBA UNION SUAVE X 1KG", "precio": 2948.4, "rubro": "ALIMENTOS"}, {"desc": "YERBA UNION SUAVE X 500 G", "precio": 1503.6, "rubro": "ALIMENTOS"}, {"desc": "AZUCAR LEDESMA X 1KG", "precio": 1066.8, "rubro": "ALMACEN"}, {"desc": "AZUCAR MASCABO LEDESMA X 800 GR", "precio": 1562.4, "rubro": "ALMACEN"}, {"desc": "FIDEOS PROVIDENCIA CODOS 500 G", "precio": 561.75, "rubro": "ALMACEN"}, {"desc": "FIDEOS PROVIDENCIA MOSTACHOL X 500 G", "precio": 561.75, "rubro": "ALMACEN"}, {"desc": "FIDEOS PROVIDENCIA TALLARIN X 500 G", "precio": 561.75, "rubro": "ALMACEN"}, {"desc": "FIDEOS PROVIDENCIA TIRABUZON X 500 G", "precio": 561.75, "rubro": "ALMACEN"}, {"desc": "AGUA BIDON RUMIPAL X 6 L", "precio": 1312.5, "rubro": "BEBIDAS"}, {"desc": "AGUA MINERAL SOCIAL X 1.5 L", "precio": 568.05, "rubro": "BEBIDAS"}, {"desc": "AGUA MINERAL SOCIAL X 600 ML", "precio": 437.85, "rubro": "BEBIDAS"}, {"desc": "AGUA RUMIPAL X 2 L", "precio": 409.5, "rubro": "BEBIDAS"}, {"desc": "AGUA VALLE DEL SOL X 6.25 L", "precio": 1289.4, "rubro": "BEBIDAS"}, {"desc": "AGUA VILLA DEL SUR X 6.25 L", "precio": 2583.0, "rubro": "BEBIDAS"}, {"desc": "AMARGO OBRERO X 1 LT", "precio": 3255.0, "rubro": "BEBIDAS"}, {"desc": "AMARGO TRES TORRES POMELO ROSADO X 1.5L", "precio": 790.65, "rubro": "BEBIDAS"}, {"desc": "AMERICANO GANCIA X 1.25L", "precio": 6083.7, "rubro": "BEBIDAS"}, {"desc": "AMERICANO GANCIA X 450 CC", "precio": 3021.9, "rubro": "BEBIDAS"}, {"desc": "AQUARIUS LIMONADA X 1.5 L", "precio": 1921.5, "rubro": "BEBIDAS"}, {"desc": "AQUARIUS MANZ X 1.5 L", "precio": 1921.5, "rubro": "BEBIDAS"}, {"desc": "AQUARIUS NARANJA X 1.5 L", "precio": 1921.5, "rubro": "BEBIDAS"}, {"desc": "AQUARIUS PERA X 1.5 L", "precio": 1921.5, "rubro": "BEBIDAS"}, {"desc": "AQUARIUS POMELO X 1.5 L", "precio": 1921.5, "rubro": "BEBIDAS"}, {"desc": "BAGGIO DURAZNO X 1L", "precio": 1273.65, "rubro": "BEBIDAS"}, {"desc": "BAGGIO DURAZNO X 200ML", "precio": 376.95, "rubro": "BEBIDAS"}, {"desc": "BAGGIO FRESH COLA X 2250 CC", "precio": 1264.2, "rubro": "BEBIDAS"}, {"desc": "BAGGIO FRESH LIMON X 2250 CC", "precio": 1264.2, "rubro": "BEBIDAS"}, {"desc": "BAGGIO FRESH NAR X 2250 CC", "precio": 1264.2, "rubro": "BEBIDAS"}, {"desc": "BAGGIO FRESH POMELO X 2250 CC", "precio": 1264.2, "rubro": "BEBIDAS"}, {"desc": "BAGGIO MANZANA X 200ML", "precio": 376.95, "rubro": "BEBIDAS"}, {"desc": "BAGGIO MANZANA X1L", "precio": 1273.65, "rubro": "BEBIDAS"}, {"desc": "BAGGIO MULTIFRUTA X 1L", "precio": 1273.65, "rubro": "BEBIDAS"}, {"desc": "BAGGIO MULTIFRUTA X 200ML", "precio": 376.95, "rubro": "BEBIDAS"}, {"desc": "BAGGIO NARANJA X 1L", "precio": 1273.65, "rubro": "BEBIDAS"}, {"desc": "BAGGIO NARANJA X 200ML", "precio": 376.95, "rubro": "BEBIDAS"}, {"desc": "CAMPARI X 750 ML", "precio": 6924.75, "rubro": "BEBIDAS"}, {"desc": "CEPITA ANANA X 1.5 LT", "precio": 2107.35, "rubro": "BEBIDAS"}, {"desc": "CEPITA BOT ANANA X 1 LT", "precio": 1559.25, "rubro": "BEBIDAS"}, {"desc": "CEPITA BOT DURAZNO X 1 LT", "precio": 1559.25, "rubro": "BEBIDAS"}, {"desc": "CEPITA BOT MANZANA X 1 LT", "precio": 1559.25, "rubro": "BEBIDAS"}, {"desc": "CEPITA BOT NARANJA X 1 LT", "precio": 1559.25, "rubro": "BEBIDAS"}, {"desc": "CEPITA DURAZNO X 1.5 LT", "precio": 2107.35, "rubro": "BEBIDAS"}, {"desc": "CEPITA NARANJA X 1.5 LT", "precio": 2107.35, "rubro": "BEBIDAS"}, {"desc": "CERVEZA ANDES NEGRA LATA X 473 CC", "precio": 1796.55, "rubro": "BEBIDAS"}, {"desc": "CERVEZA ANDES ROJA LATA X 473 CC", "precio": 1796.55, "rubro": "BEBIDAS"}, {"desc": "CERVEZA ANDES RUBIA LATA X 473 CC", "precio": 1504.65, "rubro": "BEBIDAS"}, {"desc": "CERVEZA BRAHMA LATA X 473 CC", "precio": 1377.08, "rubro": "BEBIDAS"}, {"desc": "CERVEZA BRAHMA X 1 LT", "precio": 2495.85, "rubro": "BEBIDAS"}, {"desc": "CERVEZA CORONA X 330 CC", "precio": 1922.55, "rubro": "BEBIDAS"}, {"desc": "CERVEZA CORONA X 710 ML", "precio": 3098.55, "rubro": "BEBIDAS"}, {"desc": "CERVEZA MICHELOB LATA X 473 CC", "precio": 947.1, "rubro": "BEBIDAS"}, {"desc": "CERVEZA MICHELOB LATA X 473 CC", "precio": 946.05, "rubro": "BEBIDAS"}, {"desc": "CERVEZA QUILMES CRISTAL LATA X 473 CC", "precio": 1377.08, "rubro": "BEBIDAS"}, {"desc": "CERVEZA QUILMES CRISTAL X 1 LT", "precio": 2495.85, "rubro": "BEBIDAS"}, {"desc": "CERVEZA STELLA ARTOIS LATA X 473 CC", "precio": 2205.0, "rubro": "BEBIDAS"}, {"desc": "CERVEZA STELLA ARTOIS X 1LT", "precio": 3570.0, "rubro": "BEBIDAS"}, {"desc": "CINZANO ROSSO VERMOUTH X 1 LT", "precio": 5617.5, "rubro": "BEBIDAS"}, {"desc": "COCA COLA LATA X 354ML", "precio": 1020.6, "rubro": "BEBIDAS"}, {"desc": "COCA COLA LATA ZERO X 354ML", "precio": 1020.6, "rubro": "BEBIDAS"}, {"desc": "COCA COLA RET X 1.25LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "COCA COLA RET X 2LT", "precio": 2651.25, "rubro": "BEBIDAS"}, {"desc": "COCA COLA X 1.5LT", "precio": 2720.55, "rubro": "BEBIDAS"}, {"desc": "COCA COLA X 1LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "COCA COLA X 2.5LT", "precio": 4204.2, "rubro": "BEBIDAS"}, {"desc": "COCA COLA X 500ML", "precio": 1156.05, "rubro": "BEBIDAS"}, {"desc": "COCA COLA ZERO RET X 1.25LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "COCA COLA ZERO RET X 2LT", "precio": 2651.25, "rubro": "BEBIDAS"}, {"desc": "COCA COLA ZERO X 1.5LT", "precio": 2720.55, "rubro": "BEBIDAS"}, {"desc": "COCA COLA ZERO X 2.5LT", "precio": 4204.2, "rubro": "BEBIDAS"}, {"desc": "COCA COLA ZERO X 500ML", "precio": 1156.05, "rubro": "BEBIDAS"}, {"desc": "COCA COLA. ZERO X 1 LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON COLA CLASSIC X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON COLA S/A SUAVE X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON COLA S/A X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON COLA X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON LIMA LIMON SUAVE X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON LIMA LIMON X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON NARANJA X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON NARANJA X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON POMELO S/A X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON POMELO S/A X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON POMELO X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON POMELO X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON TONICA S/A SUAVE X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON TONICA S/A X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON TONICA X 1.5 L", "precio": 1151.85, "rubro": "BEBIDAS"}, {"desc": "CUNNINGTON TONICA X 2.25 L", "precio": 1670.55, "rubro": "BEBIDAS"}, {"desc": "ESTANCIA MENDOZA CABERNET MALBEC X 750 CC", "precio": 2193.45, "rubro": "BEBIDAS"}, {"desc": "ESTANCIA MENDOZA CABERNET SAUVIG X 750 CC", "precio": 2168.25, "rubro": "BEBIDAS"}, {"desc": "ESTANCIA MENDOZA CHENIN CHARD DULCE X 750 CC", "precio": 2311.05, "rubro": "BEBIDAS"}, {"desc": "ESTANCIA MENDOZA MALBEC X 750 CC", "precio": 2289.0, "rubro": "BEBIDAS"}, {"desc": "FANTA LATA 354 ML", "precio": 1020.6, "rubro": "BEBIDAS"}, {"desc": "FANTA RET X 1.25L", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "FANTA RET X 2 LT", "precio": 2651.25, "rubro": "BEBIDAS"}, {"desc": "FANTA X 1.5 LT", "precio": 2720.55, "rubro": "BEBIDAS"}, {"desc": "FANTA X 500ML", "precio": 1156.05, "rubro": "BEBIDAS"}, {"desc": "FERNET BRANCA X 1LT", "precio": 18236.4, "rubro": "BEBIDAS"}, {"desc": "FERNET BRANCA X 450 ML", "precio": 8674.05, "rubro": "BEBIDAS"}, {"desc": "FERNET BRANCA X 750 ML", "precio": 13648.95, "rubro": "BEBIDAS"}, {"desc": "GASEOSA 7UP X 3L", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "GASEOSA MIRINDA X 3 LTS.", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "GASEOSA PEPSI X 3 L", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER ENERGY X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER MANGO LOCO X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER NGRY GREEN X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER NGRY GREEN ZERO X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER RESER PINEAP X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER UL SUNRISE X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER ULT PARADI X 473 CC", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER ULTRA WATE X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "MONSTER WATERMELON X 473 ML", "precio": 2323.65, "rubro": "BEBIDAS"}, {"desc": "POWERADE FRUTAS TROP X 500 ML", "precio": 1667.4, "rubro": "BEBIDAS"}, {"desc": "POWERADE FRUTAS TROP. X 995 ML", "precio": 2656.5, "rubro": "BEBIDAS"}, {"desc": "POWERADE MANZANA X 500 ML", "precio": 1667.4, "rubro": "BEBIDAS"}, {"desc": "POWERADE MANZANA X 995 ML", "precio": 2656.5, "rubro": "BEBIDAS"}, {"desc": "POWERADE MOUN BLAST X 500 ML", "precio": 1667.4, "rubro": "BEBIDAS"}, {"desc": "POWERADE MOUNT BLAST X 995 ML", "precio": 2656.5, "rubro": "BEBIDAS"}, {"desc": "POWERADE NARANJA X 500 ML", "precio": 1667.4, "rubro": "BEBIDAS"}, {"desc": "RED BULL X 250 ML", "precio": 1835.4, "rubro": "BEBIDAS"}, {"desc": "SANTA JULIA CHENIN DULCE X 750 CC", "precio": 4823.7, "rubro": "BEBIDAS"}, {"desc": "SENSEI SMOKED WINE X 750 CC", "precio": 2746.8, "rubro": "BEBIDAS"}, {"desc": "SIERRA DE LOS PADRES MANZANA X 1.5 LT", "precio": 741.3, "rubro": "BEBIDAS"}, {"desc": "SIERRA DE LOS PADRES NAR X 1.5 LT", "precio": 741.3, "rubro": "BEBIDAS"}, {"desc": "SIERRA DE LOS PADRES POM BCO X 1.5 LT", "precio": 741.3, "rubro": "BEBIDAS"}, {"desc": "SODA SIFON SDP X 1.75 L", "precio": 794.85, "rubro": "BEBIDAS"}, {"desc": "SODA SOCIAL X 2 LT", "precio": 909.3, "rubro": "BEBIDAS"}, {"desc": "SPEED UNLIMITED LATA X 269 ML", "precio": 1076.25, "rubro": "BEBIDAS"}, {"desc": "SPEED UNLIMITED LATA X 473 ML", "precio": 1698.9, "rubro": "BEBIDAS"}, {"desc": "SPRITE LATA X 354 ML", "precio": 1020.6, "rubro": "BEBIDAS"}, {"desc": "SPRITE RET X 2 LT", "precio": 2651.25, "rubro": "BEBIDAS"}, {"desc": "SPRITE VIDRIO RET X 1.25 LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "SPRITE X 1.5 LT", "precio": 2720.55, "rubro": "BEBIDAS"}, {"desc": "SPRITE X 1LT", "precio": 2152.5, "rubro": "BEBIDAS"}, {"desc": "SPRITE X 2.25 LT", "precio": 3746.4, "rubro": "BEBIDAS"}, {"desc": "SPRITE X 500ML", "precio": 1156.05, "rubro": "BEBIDAS"}, {"desc": "SPRITE ZERO X 1.5L", "precio": 2720.55, "rubro": "BEBIDAS"}, {"desc": "SPRITE ZERO X 2.25 LT", "precio": 3746.4, "rubro": "BEBIDAS"}, {"desc": "TACCONI BLANCO X 1.5L", "precio": 1081.5, "rubro": "BEBIDAS"}, {"desc": "TACCONI LIMON X 1.5 L", "precio": 1081.5, "rubro": "BEBIDAS"}, {"desc": "TACCONI SERRANO X 1.5 LT", "precio": 1081.5, "rubro": "BEBIDAS"}, {"desc": "TERMA CERO CUYANO X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA CUYANO X 1.35LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA LIMON X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA PATAGONICO S/AZ X 1.35LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA PATAGONICO X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA POMELO ROSADO S/AZ X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA POMELO ROSADO X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA SERRANO CERO X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TERMA SERRANO X 1.35 LT", "precio": 1447.95, "rubro": "BEBIDAS"}, {"desc": "TRES TORRES BLANCO PET 12 x 1,5", "precio": 790.65, "rubro": "BEBIDAS"}, {"desc": "TRES TORRES LIMON PET 12 x 1,5", "precio": 790.65, "rubro": "BEBIDAS"}, {"desc": "TRES TORRES SERRANO PET 12 x 1,5", "precio": 790.65, "rubro": "BEBIDAS"}, {"desc": "VINO CAFAYATE MALBEC X 750 CC", "precio": 3096.45, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO CAB.SAUV.x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO CHARD x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO MALBEC x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO MALBEC x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO MERLOT x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO ROSE x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CORDERO CON PIEL DE LOBO SYRAH x750", "precio": 3150.0, "rubro": "BEBIDAS"}, {"desc": "VINO CUATRO MONOS LOCOS MAL X 750 CC", "precio": 2651.25, "rubro": "BEBIDAS"}, {"desc": "VINO DON VALENTIN LAC TINTO X 750 CC", "precio": 2633.4, "rubro": "BEBIDAS"}, {"desc": "VINO NAMPE CAB SAUV X 750 CC", "precio": 2757.3, "rubro": "BEBIDAS"}, {"desc": "VINO NAMPE MALBEC X 750", "precio": 2757.3, "rubro": "BEBIDAS"}, {"desc": "VINO NAMPE MERLOT X 750 CC", "precio": 2757.3, "rubro": "BEBIDAS"}, {"desc": "VINO NAMPE TEMPRANILLO X 750 CC", "precio": 2757.3, "rubro": "BEBIDAS"}, {"desc": "VINO OVEJA BLACK CAB SAUV X 750 CC", "precio": 2455.95, "rubro": "BEBIDAS"}, {"desc": "VINO OVEJA BLACK MALBEC X 750 CC", "precio": 2459.1, "rubro": "BEBIDAS"}, {"desc": "VINO OVEJA BLACK RED BLEND X 750 CC", "precio": 3504.9, "rubro": "BEBIDAS"}, {"desc": "VINO PROFUGO CAB SAU ESPECIAS X 750 CC", "precio": 2458.05, "rubro": "BEBIDAS"}, {"desc": "VINO PROFUGO CHENIN DULCE X 750 CC", "precio": 2746.8, "rubro": "BEBIDAS"}, {"desc": "VINO PROFUGO MALBEC FR ROJOS X 750 CC", "precio": 2458.05, "rubro": "BEBIDAS"}, {"desc": "VINO PROFUGO MR FRANC X 750 CC", "precio": 3319.05, "rubro": "BEBIDAS"}, {"desc": "VINO SAFARI MALBEC X 750 CC", "precio": 2574.6, "rubro": "BEBIDAS"}, {"desc": "VINO TORO BLANCO CAJA X 1LT", "precio": 1394.4, "rubro": "BEBIDAS"}, {"desc": "VINO TORO CLASICO X 750 ML", "precio": 2084.25, "rubro": "BEBIDAS"}, {"desc": "VINO TORO TINTO CAJA X 1LT", "precio": 1691.55, "rubro": "BEBIDAS"}, {"desc": "VINO TORO TINTO X 1L", "precio": 2129.4, "rubro": "BEBIDAS"}, {"desc": "VINO TORO TINTO X 700 ML", "precio": 1606.5, "rubro": "BEBIDAS"}, {"desc": "VINO VIÑAS DE BALBO BLANCO X 1.25 LT", "precio": 2148.3, "rubro": "BEBIDAS"}, {"desc": "VINO VIÑAS DE BALBO TINTO X 1.25 LT", "precio": 2148.3, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY APRICOT X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY BLOOD ORANGE X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY COCO X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY COSMIC X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY PASSION FRUIT X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY PINEAPPLE X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY RASPBERRY X 750 ML", "precio": 7750.05, "rubro": "BEBIDAS"}, {"desc": "VODKA SKYY X 750 ML", "precio": 6825.0, "rubro": "BEBIDAS"}, {"desc": "DETERG GIGANTE ALOE X 750 ML", "precio": 841.05, "rubro": "LIMPIEZA"}, {"desc": "DETERG GIGANTE GLIC X 750 ML", "precio": 841.05, "rubro": "LIMPIEZA"}, {"desc": "DETERG GIGANTE LIMON X 750 ML", "precio": 841.05, "rubro": "LIMPIEZA"}, {"desc": "DETERG MAGISTRAL LIMON X 300 ML", "precio": 2063.25, "rubro": "LIMPIEZA"}, {"desc": "DETERG MAGISTRAL LIMON X 500 ML", "precio": 3339.0, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ ALA MATIC ECO LAVADO DP X 3 L", "precio": 6293.7, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ ALA PARA DILUIR X 500 ML", "precio": 5586.0, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ GRANBY BAJA ESP DP X 3 LT", "precio": 4161.15, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ GRANBY DP MATIC X 3 L", "precio": 4161.15, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ GRANBY DP MATIC X 800 ML", "precio": 1173.9, "rubro": "LIMPIEZA"}, {"desc": "JABON LIQ GRANBY ROSA MATIC DP X 800 ML", "precio": 1173.9, "rubro": "LIMPIEZA"}, {"desc": "LAVANDINA AYUDIN CLASICA X 1 LT", "precio": 971.25, "rubro": "LIMPIEZA"}, {"desc": "LAVANDINA AYUDIN CLASICA X 2 LT", "precio": 2072.7, "rubro": "LIMPIEZA"}, {"desc": "LAVANDINA GIGANTE 1L", "precio": 1011.15, "rubro": "LIMPIEZA"}, {"desc": "LAVANDINA GIGANTE X 2 L", "precio": 1948.8, "rubro": "LIMPIEZA"}, {"desc": "PAÑALES DUFFY G X 32 UN", "precio": 6649.65, "rubro": "LIMPIEZA"}, {"desc": "PAÑALES DUFFY M X 36 UN", "precio": 6649.65, "rubro": "LIMPIEZA"}, {"desc": "PAÑALES DUFFY P X 40 UN", "precio": 6649.65, "rubro": "LIMPIEZA"}, {"desc": "PAÑALES DUFFY XG X 28 UN", "precio": 6649.65, "rubro": "LIMPIEZA"}, {"desc": "PAÑALES DUFFY XXG X 26 UN", "precio": 6649.65, "rubro": "LIMPIEZA"}, {"desc": "PAPEL H. ELEGANTE S.H X 4 U", "precio": 1087.8, "rubro": "LIMPIEZA"}, {"desc": "PAPEL H. ELEGANTE S.H X 6 U", "precio": 1788.15, "rubro": "LIMPIEZA"}, {"desc": "PERFUMINA GIGANTE ANTIB JAZ X 900 ML", "precio": 933.45, "rubro": "LIMPIEZA"}, {"desc": "PERFUMINA GIGANTE BEBE X 900 ML", "precio": 933.45, "rubro": "LIMPIEZA"}, {"desc": "PERFUMINA GIGANTE CITRON X 900 ML", "precio": 933.45, "rubro": "LIMPIEZA"}, {"desc": "PERFUMINA GIGANTE LAVAND X 900 ML", "precio": 933.45, "rubro": "LIMPIEZA"}, {"desc": "POETT AERO DESP ENERGIA X 360 ML", "precio": 1965.6, "rubro": "LIMPIEZA"}, {"desc": "POETT AERO FLORES PRIMAVERA X 360 CC", "precio": 1965.6, "rubro": "LIMPIEZA"}, {"desc": "POETT AERO FRESC LAVANDA X 360ML", "precio": 1965.6, "rubro": "LIMPIEZA"}, {"desc": "POETT AERO SOLO PARA TI X 360 CC", "precio": 1965.6, "rubro": "LIMPIEZA"}, {"desc": "POETT AERO SUAV ALGODON X 360 CC", "precio": 1965.6, "rubro": "LIMPIEZA"}, {"desc": "POETT LIQ F. DE PRIMAVERA 900 ML", "precio": 1234.8, "rubro": "LIMPIEZA"}, {"desc": "POETT LIQ MUSICA PRIMAV X 900 ML", "precio": 1234.8, "rubro": "LIMPIEZA"}, {"desc": "POETT LIQ SOLO PARA TI 900 ML", "precio": 1234.8, "rubro": "LIMPIEZA"}, {"desc": "POETT LIQ SUA ALGODON X 900 ML", "precio": 1234.8, "rubro": "LIMPIEZA"}, {"desc": "POETT LIQ SUAVIDA BEBE 900 ML", "precio": 1234.8, "rubro": "LIMPIEZA"}, {"desc": "ROLLO COCINA ELEGANTE GIGANTE DH 200 P.", "precio": 1706.25, "rubro": "LIMPIEZA"}, {"desc": "ROLLO COCINA ELEGANTE X 3 U", "precio": 1365.0, "rubro": "LIMPIEZA"}];
+
+let supabaseClient = null;
+let currentVendor = null;
+let pedidoItems = [];
+let formaPago = 'efectivo';
+let pagadoVal = 'Si';
+let misPedidos = [];
+
+// Init Supabase
+function initSupabase() {
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') {
+    showToast('⚠️ Configurar Supabase URL primero', 'error');
+    return false;
+  }
+  try {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return true;
+  } catch(e) { return false; }
+}
+
+// LOGIN
+function selectVendor(name, el) {
+  currentVendor = name;
+  document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('btn-login').disabled = false;
+}
+
+function doLogin() {
+  if (!currentVendor) return;
+  localStorage.setItem('vendedor', currentVendor);
+  showApp();
+}
+
+function doLogout() {
+  localStorage.removeItem('vendedor');
+  currentVendor = null;
+  document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('btn-login').disabled = true;
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('screen-login').classList.add('active');
+  resetForm();
+}
+
+function showApp() {
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+  document.getElementById('header-title').textContent = '👋 ' + currentVendor;
+  const now = new Date();
+  document.getElementById('header-date').textContent = now.toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
+  
+  // Populate datalist
+  const dl = document.getElementById('clientes-datalist');
+  dl.innerHTML = CLIENTES.map(c => `<option value="${c}">`).join('');
+  
+  // Check connection
+  checkConnection();
+  loadMisPedidos();
+}
+
+// Check if Supabase is configured
+async function checkConnection() {
+  const dot = document.getElementById('sync-dot');
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') {
+    dot.classList.add('offline');
+    return;
+  }
+  if (!supabaseClient) initSupabase();
+  try {
+    const { error } = await supabaseClient.from('pedidos').select('id').limit(1);
+    dot.classList.toggle('offline', !!error);
+  } catch(e) { dot.classList.add('offline'); }
+}
+
+// TABS
+function showTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+  if (name === 'mispedidos') loadMisPedidos();
+  if (name === 'resumen') renderResumen();
+}
+
+// PRODUCT SEARCH
+function searchProductos(q) {
+  const dd = document.getElementById('prod-dropdown');
+  if (!q || q.length < 2) { dd.classList.remove('open'); return; }
+  const results = PRODUCTOS.filter(p => p.desc.toLowerCase().includes(q.toLowerCase())).slice(0, 15);
+  if (!results.length) { dd.classList.remove('open'); return; }
+  dd.innerHTML = results.map(p => `
+    <div class="prod-item" onclick="addProduct(${JSON.stringify(p).replace(/"/g,"&quot;")})">
+      <div class="prod-item-name">${p.desc}</div>
+      <div class="prod-item-price">${fmtPrice(p.precio)}</div>
+    </div>`).join('');
+  dd.classList.add('open');
+}
+
+function addProduct(prod) {
+  const existing = pedidoItems.find(i => i.desc === prod.desc);
+  if (existing) { existing.qty++; } else {
+    pedidoItems.push({ desc: prod.desc, precio: prod.precio, qty: 1 });
+  }
+  document.getElementById('prod-dropdown').classList.remove('open');
+  document.getElementById('inp-prod-search').value = '';
+  renderItems();
+}
+
+function changeQty(idx, delta) {
+  pedidoItems[idx].qty = Math.max(0, pedidoItems[idx].qty + delta);
+  if (pedidoItems[idx].qty === 0) pedidoItems.splice(idx, 1);
+  renderItems();
+}
+
+function removeItem(idx) { pedidoItems.splice(idx, 1); renderItems(); }
+
+function renderItems() {
+  const list = document.getElementById('items-list');
+  const empty = document.getElementById('items-empty');
+  const totalBar = document.getElementById('total-bar');
+  const total = pedidoItems.reduce((s,i) => s + i.precio * i.qty, 0);
+  
+  if (!pedidoItems.length) {
+    list.innerHTML = '<div class="empty" id="items-empty"><div class="empty-icon">🛒</div><div class="empty-text">Todavía no agregaste productos</div></div>';
+    totalBar.style.display = 'none';
+    return;
+  }
+  list.innerHTML = pedidoItems.map((item, idx) => `
+    <div class="item-row">
+      <div class="item-name">${item.desc}</div>
+      <div class="item-qty-wrap">
+        <button class="qty-btn minus" onclick="changeQty(${idx},-1)">−</button>
+        <span class="qty-num">${item.qty}</span>
+        <button class="qty-btn" onclick="changeQty(${idx},1)">+</button>
+      </div>
+      <div class="item-subtotal">${fmtPrice(item.precio * item.qty)}</div>
+      <button class="item-del" onclick="removeItem(${idx})">✕</button>
+    </div>`).join('');
+  totalBar.style.display = 'flex';
+  document.getElementById('total-amount').textContent = fmtPrice(total);
+}
+
+// PAGO
+function setFormaPago(tipo, el) {
+  formaPago = tipo;
+  document.querySelectorAll('#tab-nuevo .toggle-group:first-of-type .toggle-opt').forEach(o => o.classList.remove('active'));
+  // Can't easily target, use parent
+  el.parentElement.querySelectorAll('.toggle-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('pago-mixto').style.display = tipo === 'mixto' ? 'block' : 'none';
+}
+
+function setPagado(val, el) {
+  pagadoVal = val;
+  el.parentElement.querySelectorAll('.toggle-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function calcMixto() {
+  const ef = parseFloat(document.getElementById('inp-efectivo').value) || 0;
+  const tr = parseFloat(document.getElementById('inp-transferencia').value) || 0;
+}
+
+// SUBMIT
+async function submitPedido() {
+  const cliente = document.getElementById('inp-cliente').value.trim();
+  if (!cliente) { showToast('⚠️ Ingresá el nombre del cliente', 'error'); return; }
+  if (!pedidoItems.length) { showToast('⚠️ Agregá al menos un producto', 'error'); return; }
+  
+  const total = pedidoItems.reduce((s,i) => s + i.precio * i.qty, 0);
+  let efectivo = 0, transferencia = 0;
+  if (formaPago === 'efectivo') efectivo = total;
+  else if (formaPago === 'transferencia') transferencia = total;
+  else {
+    efectivo = parseFloat(document.getElementById('inp-efectivo').value) || 0;
+    transferencia = parseFloat(document.getElementById('inp-transferencia').value) || 0;
+  }
+  
+  const pedido = {
+    fecha: new Date().toISOString().split('T')[0],
+    cliente,
+    monto: Math.round(total * 100) / 100,
+    pagado: pagadoVal,
+    efectivo,
+    transferencia,
+    entregado: '',
+    vendedor: currentVendor,
+    obs: document.getElementById('inp-obs').value,
+    items: JSON.stringify(pedidoItems),
+    created_at: new Date().toISOString()
+  };
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  let saved = false;
+  
+  // Try Supabase
+  if (SUPABASE_URL !== 'TU_SUPABASE_URL') {
+    if (!supabaseClient) initSupabase();
+    try {
+      const { error } = await supabaseClient.from('pedidos').insert([pedido]);
+      if (!error) saved = true;
+    } catch(e) {}
+  }
+
+  // Always save locally
+  const local = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  pedido._id = Date.now();
+  pedido._synced = saved;
+  local.push(pedido);
+  localStorage.setItem('pedidos_local', JSON.stringify(local));
+  misPedidos = local;
+
+  btn.disabled = false;
+  btn.textContent = '✅ Confirmar pedido';
+  
+  if (saved) showToast('✅ Pedido guardado online', 'success');
+  else showToast('💾 Guardado localmente (sin conexión)', '');
+  
+  resetForm();
+}
+
+function resetForm() {
+  document.getElementById('inp-cliente').value = '';
+  document.getElementById('inp-prod-search').value = '';
+  document.getElementById('inp-obs').value = '';
+  document.getElementById('inp-efectivo').value = '';
+  document.getElementById('inp-transferencia').value = '';
+  pedidoItems = [];
+  formaPago = 'efectivo';
+  pagadoVal = 'Si';
+  gpsData = { lat: null, lng: null };
+  document.getElementById('gps-badge').className = 'gps-badge gps-none';
+  document.getElementById('gps-badge').textContent = 'Sin ubicación';
+  document.getElementById('btn-gps').textContent = '📍 Capturar ubicación';
+  document.getElementById('btn-gps').disabled = false;
+  renderItems();
+  document.getElementById('total-bar').style.display = 'none';
+  document.getElementById('pago-mixto').style.display = 'none';
+  // Reset toggles
+  document.querySelectorAll('.toggle-opt').forEach((o,i) => {
+    if (o.parentElement.children[0] === o) o.classList.add('active');
+    else o.classList.remove('active');
+  });
+}
+
+// LOAD PEDIDOS
+async function loadMisPedidos() {
+  const list = document.getElementById('mis-pedidos-list');
+  list.innerHTML = '<div class="loading"><div class="spinner"></div>Cargando...</div>';
+  
+  const today = new Date().toISOString().split('T')[0];
+  let pedidos = [];
+  
+  // Local first
+  const local = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  pedidos = local.filter(p => p.vendedor === currentVendor);
+  
+  // Try Supabase
+  if (SUPABASE_URL !== 'TU_SUPABASE_URL') {
+    if (!supabaseClient) initSupabase();
+    try {
+      const { data, error } = await supabaseClient
+        .from('pedidos')
+        .select('*')
+        .eq('vendedor', currentVendor)
+        .gte('fecha', today)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        pedidos = data; // Use remote data
+        // Merge with unsynced local
+        const unsynced = local.filter(p => !p._synced);
+        pedidos = [...pedidos, ...unsynced];
+      }
+    } catch(e) {}
+  }
+  
+  misPedidos = pedidos;
+  renderMisPedidos(pedidos);
+  renderResumen();
+}
+
+function renderMisPedidos(pedidos) {
+  const list = document.getElementById('mis-pedidos-list');
+  if (!pedidos.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">No hay pedidos cargados hoy</div></div>';
+    return;
+  }
+  list.innerHTML = pedidos.map(p => `
+    <div class="pedido-card ${p.pagado === 'Si' ? 'pagado' : 'pendiente'}">
+      <div class="pedido-header">
+        <div class="pedido-cliente">${p.cliente}</div>
+        <div class="pedido-monto">${fmtPrice(p.monto)}</div>
+      </div>
+      <div class="pedido-meta">
+        <span>${p.fecha}</span>
+        <span class="badge badge-${p.pagado === 'Si' ? 'green' : 'yellow'}">${p.pagado === 'Si' ? 'Pagado' : 'Pendiente'}</span>
+        ${p._synced === false ? '<span class="badge badge-red">Sin sync</span>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+function renderResumen() {
+  const local = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  const today = new Date().toISOString().split('T')[0];
+  const hoy = [...misPedidos, ...local].filter(p => p.fecha === today && p.vendedor === currentVendor);
+  const total = hoy.reduce((s,p) => s+p.monto, 0);
+  const cobrado = hoy.filter(p=>p.pagado==='Si').reduce((s,p)=>s+p.monto,0);
+  const pend = total - cobrado;
+  document.getElementById('stat-pedidos').textContent = hoy.length;
+  document.getElementById('stat-total').textContent = fmtShort(total);
+  document.getElementById('stat-cobrado').textContent = fmtShort(cobrado);
+  document.getElementById('stat-pendiente').textContent = fmtShort(pend);
+  document.getElementById('stat-comision').textContent = fmtPrice(total * 0.02);
+}
+
+// UTILS
+function fmtPrice(n) {
+  return '$ ' + Number(n||0).toLocaleString('es-AR', {minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function fmtShort(n) {
+  const v = Number(n||0);
+  if(v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if(v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// =============================================
+//   GPS / UBICACIÓN DE CLIENTES
+// =============================================
+let gpsData = { lat: null, lng: null };
+
+async function checkClienteUbicacion(nombre) {
+  const badge = document.getElementById('gps-badge');
+  const btn = document.getElementById('btn-gps');
+  gpsData = { lat: null, lng: null };
+  if (!nombre || nombre.length < 2) {
+    badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    btn.textContent = '📍 Capturar ubicación'; return;
+  }
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') return;
+  if (!supabaseClient) initSupabase();
+  try {
+    const { data } = await supabaseClient
+      .from('clientes').select('lat,lng').eq('nombre', nombre).maybeSingle();
+    if (data && data.lat) {
+      badge.className = 'gps-badge gps-already';
+      badge.textContent = '✅ Ubicación guardada';
+      btn.textContent = '🔄 Actualizar ubicación';
+    } else {
+      badge.className = 'gps-badge gps-none';
+      badge.textContent = 'Sin ubicación';
+      btn.textContent = '📍 Capturar ubicación';
+    }
+  } catch(e) {}
+}
+
+function captureGPS() {
+  const cliente = document.getElementById('inp-cliente').value.trim();
+  if (!cliente) { showToast('⚠️ Primero ingresá el nombre del cliente', 'error'); return; }
+
+  const btn = document.getElementById('btn-gps');
+  const badge = document.getElementById('gps-badge');
+  btn.disabled = true;
+  btn.textContent = '⏳ Localizando...';
+  badge.className = 'gps-badge gps-loading';
+  badge.textContent = 'Buscando GPS...';
+
+  if (!navigator.geolocation) {
+    showToast('❌ GPS no disponible en este dispositivo', 'error');
+    btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+    badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      gpsData.lat = pos.coords.latitude;
+      gpsData.lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+
+      badge.className = 'gps-badge gps-saved';
+      badge.textContent = `📍 ±${acc}m`;
+      btn.textContent = '✅ Guardando...';
+
+      await saveClienteUbicacion(cliente, gpsData.lat, gpsData.lng);
+      btn.textContent = '✅ Guardado';
+      btn.disabled = false;
+    },
+    (err) => {
+      const msg = err.code === 1 ? 'Permiso de GPS denegado' :
+                  err.code === 2 ? 'GPS no disponible' : 'Tiempo de espera agotado';
+      showToast('❌ ' + msg, 'error');
+      btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+      badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+async function saveClienteUbicacion(nombre, lat, lng) {
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') {
+    showToast('⚠️ Supabase no configurado — ubicación solo guardada en este dispositivo', '');
+    return;
+  }
+  if (!supabaseClient) initSupabase();
+  try {
+    const { error } = await supabaseClient.from('clientes').upsert(
+      [{ nombre, lat, lng, capturado_por: currentVendor, capturado_at: new Date().toISOString() }],
+      { onConflict: 'nombre' }
+    );
+    if (!error) {
+      showToast('📍 Ubicación guardada para ' + nombre, 'success');
+      document.getElementById('gps-badge').className = 'gps-badge gps-already';
+      document.getElementById('gps-badge').textContent = '✅ Ubicación guardada';
+    } else {
+      showToast('⚠️ Error al guardar ubicación online', 'error');
+    }
+  } catch(e) { showToast('⚠️ Error al conectar con el servidor', 'error'); }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.product-search-wrap')) {
+    document.getElementById('prod-dropdown').classList.remove('open');
+  }
+});
+
+// Auto-login if session exists
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('vendedor');
+  if (saved) { currentVendor = saved; showApp(); }
+});
+</script>
+</body>
+</html>
