@@ -201,6 +201,7 @@
   <div class="tabs">
     <div class="tab active" onclick="showTab('nuevo',this)">📝 Nueva preventa</div>
     <div class="tab" onclick="showTab('mispedidos',this)">📦 Mis preventas</div>
+    <div class="tab" onclick="showTab('ubicaciones',this)">📍 Ubicaciones</div>
     <div class="tab" onclick="showTab('resumen',this)">📊 Resumen</div>
   </div>
 
@@ -319,6 +320,27 @@
       </div>
     </div>
 
+    <!-- TAB: UBICACIONES -->
+    <div class="tab-content" id="tab-ubicaciones">
+      <div class="section-card">
+        <div class="section-title">Capturar ubicación de cliente</div>
+        <div class="form-group">
+          <label class="form-label">Nombre del cliente</label>
+          <input type="text" class="form-input" id="ubi-cliente" placeholder="Buscar cliente..."
+            oninput="searchUbiCliente(this.value)" onchange="checkUbiClienteExistente(this.value)" autocomplete="off">
+          <div id="ubi-dropdown" class="prod-dropdown"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+          <div class="gps-badge gps-none" id="ubi-badge">Sin ubicación</div>
+        </div>
+        <button class="btn-gps" id="ubi-btn-gps" onclick="captureUbiGPS()" style="margin-top:14px;width:100%">📍 Capturar ubicación</button>
+      </div>
+      <div class="section-card">
+        <div class="section-title">Clientes con GPS cargado</div>
+        <div id="ubi-lista" style="font-size:13px;color:var(--muted);padding:8px 0">Cargando...</div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -418,6 +440,7 @@ function showTab(name, el) {
   if (el) el.classList.add('active');
   if (name === 'mispedidos') loadMisPedidos();
   if (name === 'resumen') renderResumen();
+  if (name === 'ubicaciones') loadUbiLista();
 }
 
 // PRODUCT SEARCH
@@ -853,6 +876,61 @@ window.addEventListener('load', () => {
   const saved = localStorage.getItem('vendedor');
   if (saved) { currentVendor = saved; showApp(); }
 });
+// UBICACIONES
+function searchUbiCliente(val) {
+  const dd = document.getElementById('ubi-dropdown');
+  if (!val) { dd.style.display='none'; return; }
+  const res = CLIENTES.filter(c=>c.toLowerCase().includes(val.toLowerCase())).slice(0,8);
+  if (!res.length) { dd.style.display='none'; return; }
+  dd.style.display='block';
+  dd.innerHTML = res.map(c=>'<div class="prod-item" onclick="selectUbiCliente(\'' + c.replace(/'/g,"\\\'")+'\')"><div class="prod-item-name">'+c+'</div></div>').join('');
+}
+function selectUbiCliente(n) {
+  document.getElementById('ubi-cliente').value=n;
+  document.getElementById('ubi-dropdown').style.display='none';
+  checkUbiClienteExistente(n);
+}
+async function checkUbiClienteExistente(nombre) {
+  const badge=document.getElementById('ubi-badge'), btn=document.getElementById('ubi-btn-gps');
+  if (!nombre||nombre.length<2) { badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación'; btn.textContent='📍 Capturar ubicación'; return; }
+  if (!supabaseClient) initSupabase();
+  try {
+    const {data}=await supabaseClient.from('clientes').select('lat').eq('nombre',nombre).maybeSingle();
+    if (data&&data.lat) { badge.className='gps-badge gps-already'; badge.textContent='✅ Ubicación guardada'; btn.textContent='🔄 Actualizar ubicación'; }
+    else { badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación'; btn.textContent='📍 Capturar ubicación'; }
+  } catch(e){}
+}
+function captureUbiGPS() {
+  const cliente=document.getElementById('ubi-cliente').value.trim();
+  if (!cliente) { showToast('⚠️ Ingresá el nombre del cliente', 'error'); return; }
+  const btn=document.getElementById('ubi-btn-gps'), badge=document.getElementById('ubi-badge');
+  btn.disabled=true; btn.textContent='⏳ Localizando...';
+  badge.className='gps-badge gps-loading'; badge.textContent='Buscando GPS...';
+  if (!navigator.geolocation) { showToast('GPS no disponible','error'); btn.disabled=false; btn.textContent='📍 Capturar ubicación'; return; }
+  function ok(pos) {
+    const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);
+    badge.className='gps-badge gps-saved'; badge.textContent='📍 ±'+acc+'m';
+    btn.textContent='✅ Guardando...';
+    saveClienteUbicacion(cliente,lat,lng).then(()=>{ btn.textContent='✅ Guardado'; btn.disabled=false; badge.className='gps-badge gps-already'; badge.textContent='✅ Ubicación guardada'; loadUbiLista(); });
+  }
+  function er(err) {
+    if (err.code===1) { const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent); showToast(isIOS?'❌ En iPhone: Configuración → Privacidad → Localización → Safari':'❌ Permiso denegado','error'); }
+    else if (err.code===2) { navigator.geolocation.getCurrentPosition(ok,()=>showToast('❌ GPS no disponible','error'),{enableHighAccuracy:false,timeout:15000,maximumAge:30000}); return; }
+    else showToast('❌ Tiempo agotado. Intentá al aire libre.','error');
+    btn.disabled=false; btn.textContent='📍 Capturar ubicación'; badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación';
+  }
+  navigator.geolocation.getCurrentPosition(ok,er,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+}
+async function loadUbiLista() {
+  const lista=document.getElementById('ubi-lista');
+  if (!supabaseClient) initSupabase();
+  try {
+    const {data,error}=await supabaseClient.from('clientes').select('nombre,capturado_at').not('lat','is',null).order('capturado_at',{ascending:false});
+    if (error||!data||!data.length) { lista.innerHTML='<span style="color:var(--muted)">Aún no hay clientes con GPS cargado.</span>'; return; }
+    lista.innerHTML=data.map(c=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:600">'+c.nombre+'</div><div style="font-size:11px;color:var(--muted)">'+( c.capturado_at?new Date(c.capturado_at).toLocaleDateString('es-AR'):'')+' </div></div><span style="color:var(--green);font-size:11px;font-weight:700">✅ GPS</span></div>').join('');
+  } catch(e) { lista.innerHTML='<span style="color:var(--muted)">Error al cargar.</span>'; }
+}
+
 </script>
 </body>
 </html>
