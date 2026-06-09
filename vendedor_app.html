@@ -1046,6 +1046,25 @@ async function checkClienteUbicacion(nombre) {
   } catch(e) {}
 }
 
+async function saveClienteUbicacion(nombre, lat, lng) {
+  try {
+    const resp = await fetch(SUPABASE_URL + '/rest/v1/clientes?nombre=eq.' + encodeURIComponent(nombre), {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ lat: lat, lng: lng })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    showToast('📍 Ubicación guardada', 'success');
+  } catch(e) {
+    showToast('Error guardando ubicación: ' + (e?.message || String(e)).slice(0,60), 'error');
+  }
+}
+
 function captureGPS() {
   const cliente = document.getElementById('inp-cliente').value.trim();
   if (!cliente) { showToast('⚠️ Primero ingresá el nombre del cliente', 'error'); return; }
