@@ -1093,6 +1093,10 @@ function captureGPS() {
     saveClienteUbicacion(cliente, gpsData.lat, gpsData.lng).then(() => {
       btn.textContent = '✅ Guardado';
       btn.disabled = false;
+    }).catch((e) => {
+      btn.textContent = '📍 Error - reintentar';
+      btn.disabled = false;
+      showToast('Error: ' + (e?.message || String(e)).slice(0,80), 'error');
     });
   }
 
