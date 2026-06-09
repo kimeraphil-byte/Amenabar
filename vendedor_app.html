@@ -502,17 +502,26 @@ function enviarPosicion() {
     const lng = pos.coords.longitude;
     const acc = Math.round(pos.coords.accuracy);
     try {
-      await supabaseClient.from('camioneta').upsert([{
-        id: 1, lat, lng, activo: true,
-        repartidor: currentVendor || '',
-        updated_at: new Date().toISOString()
-      }], { onConflict: 'id' });
+      const resp = await fetch(SUPABASE_URL + '/rest/v1/camioneta?id=eq.1', {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          lat: lat, lng: lng, activo: true,
+          repartidor: currentVendor || '',
+          updated_at: new Date().toISOString()
+        })
+      });
+      if (!resp.ok) { const t = await resp.text(); throw new Error('HTTP ' + resp.status + ': ' + t.slice(0,60)); }
       const now = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-      document.getElementById('ruta-last-update').style.display = 'block';
-      document.getElementById('ruta-last-update').textContent = '📡 Último envío: ' + now;
-      document.getElementById('ruta-last-update').textContent = '📡 ' + now + '  ·  ±' + acc + 'm';
+      const upd = document.getElementById('ruta-last-update');
+      if (upd) { upd.style.display = 'block'; upd.textContent = '📡 ' + now + '  ·  ±' + acc + 'm'; }
     } catch(e) {
-      showToast('Error: ' + (e?.message || e?.error_description || JSON.stringify(e)).slice(0,80), 'error');
+      showToast('Error: ' + (e?.message || String(e)).slice(0,80), 'error');
     }
   }, err => {
     showToast('Error GPS: ' + (err.code === 1 ? 'permiso denegado' : 'señal débil'), 'error');
