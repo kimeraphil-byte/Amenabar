@@ -295,6 +295,11 @@
 
     <!-- TAB: MIS PEDIDOS -->
     <div class="tab-content" id="tab-mispedidos">
+      <div id="sync-bar" style="display:none;padding:10px 16px 0">
+        <button id="btn-sync" onclick="syncPendientes()" style="width:100%;background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">
+          🔄 Sincronizar pendientes (<span id="sync-count">0</span>)
+        </button>
+      </div>
       <div id="mis-pedidos-list">
         <div class="loading"><div class="spinner"></div>Cargando...</div>
       </div>
@@ -632,6 +637,7 @@ async function loadMisPedidos() {
   misPedidos = pedidos;
   renderMisPedidos(pedidos);
   renderResumen();
+  updateSyncBar();
 }
 
 function renderMisPedidos(pedidos) {
@@ -652,6 +658,38 @@ function renderMisPedidos(pedidos) {
         ${p._synced === false ? '<span class="badge badge-red">Sin sync</span>' : ''}
       </div>
     </div>`).join('');
+}
+
+async function syncPendientes() {
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true;
+  btn.textContent = '⏳ Sincronizando...';
+  if (!supabaseClient) initSupabase();
+  const allLocal = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  const unsynced = allLocal.filter(p => !p._synced && p.vendedor === currentVendor);
+  let ok = 0, fail = 0;
+  for (const p of unsynced) {
+    const { _id, _synced, ...pedido } = p;
+    try {
+      const { error } = await supabaseClient.from('pedidos').insert([pedido]);
+      if (!error) { p._synced = true; ok++; } else { fail++; }
+    } catch(e) { fail++; }
+  }
+  localStorage.setItem('pedidos_local', JSON.stringify(allLocal));
+  if (ok > 0 && fail === 0) showToast(`✅ ${ok} preventa${ok>1?'s':''} sincronizada${ok>1?'s':''}`, 'success');
+  else if (ok > 0) showToast(`⚠️ ${ok} sincronizadas, ${fail} fallaron`, '');
+  else showToast('❌ No se pudo sincronizar. Verificá la conexión.', 'error');
+  btn.disabled = false;
+  updateSyncBar();
+  await loadMisPedidos();
+}
+
+function updateSyncBar() {
+  const allLocal = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  const pending = allLocal.filter(p => !p._synced && p.vendedor === currentVendor).length;
+  const bar = document.getElementById('sync-bar');
+  const cnt = document.getElementById('sync-count');
+  if (bar) { bar.style.display = pending > 0 ? 'block' : 'none'; if (cnt) cnt.textContent = pending; }
 }
 
 function renderResumen() {
