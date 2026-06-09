@@ -479,6 +479,7 @@ function iniciarSeguimiento() {
     showToast('GPS no disponible en este dispositivo', 'error'); return;
   }
   if (!supabaseClient) initSupabase();
+  if (!supabaseClient) { showToast('Error: Supabase no inicializado', 'error'); return; }
   _trackingActivo = true;
   updateRutaUI(true);
   enviarPosicion(); // enviar inmediatamente
@@ -511,7 +512,7 @@ function enviarPosicion() {
       document.getElementById('ruta-last-update').textContent = '📡 Último envío: ' + now;
       document.getElementById('ruta-last-update').textContent = '📡 ' + now + '  ·  ±' + acc + 'm';
     } catch(e) {
-      showToast('Error enviando posición', 'error');
+      showToast('Error: ' + (e?.message || e?.error_description || JSON.stringify(e)).slice(0,80), 'error');
     }
   }, err => {
     showToast('Error GPS: ' + (err.code === 1 ? 'permiso denegado' : 'señal débil'), 'error');
