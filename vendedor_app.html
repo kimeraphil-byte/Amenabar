@@ -734,27 +734,50 @@ function captureGPS() {
     return;
   }
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      gpsData.lat = pos.coords.latitude;
-      gpsData.lng = pos.coords.longitude;
-      const acc = Math.round(pos.coords.accuracy);
-
-      badge.className = 'gps-badge gps-saved';
-      badge.textContent = `📍 ±${acc}m`;
-      btn.textContent = '✅ Guardando...';
-
-      await saveClienteUbicacion(cliente, gpsData.lat, gpsData.lng);
+  function onGPSSuccess(pos) {
+    gpsData.lat = pos.coords.latitude;
+    gpsData.lng = pos.coords.longitude;
+    const acc = Math.round(pos.coords.accuracy);
+    badge.className = 'gps-badge gps-saved';
+    badge.textContent = `📍 ±${acc}m`;
+    btn.textContent = '✅ Guardando...';
+    saveClienteUbicacion(cliente, gpsData.lat, gpsData.lng).then(() => {
       btn.textContent = '✅ Guardado';
       btn.disabled = false;
-    },
-    (err) => {
-      const msg = err.code === 1 ? 'Permiso de GPS denegado' :
-                  err.code === 2 ? 'GPS no disponible' : 'Tiempo de espera agotado';
-      showToast('❌ ' + msg, 'error');
+    });
+  }
+
+  function onGPSError(err) {
+    if (err.code === 1) {
+      const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        showToast('❌ Ubicación bloqueada. En iPhone: Configuración → Privacidad → Localización → Safari → "Al usar la app"', 'error');
+      } else {
+        showToast('❌ Permiso de ubicación denegado. Habilitalo en la configuración del navegador.', 'error');
+      }
       btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
       badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
-    },
+    } else if (err.code === 2) {
+      showToast('⚠️ GPS preciso no disponible, reintentando...', '');
+      navigator.geolocation.getCurrentPosition(
+        onGPSSuccess,
+        () => {
+          showToast('❌ GPS no disponible en este momento', 'error');
+          btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+          badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+      );
+    } else {
+      showToast('❌ Tiempo de espera agotado. Intentá al aire libre o con WiFi activo.', 'error');
+      btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+      badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    }
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    onGPSSuccess,
+    onGPSError,
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
   );
 }
