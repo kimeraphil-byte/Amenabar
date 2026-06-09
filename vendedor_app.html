@@ -655,4 +655,143 @@ function renderMisPedidos(pedidos) {
 }
 
 function renderResumen() {
-  const local = JSON.parse(localStorage.getItem('pedidos_loc
+  const local = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
+  const today = new Date().toISOString().split('T')[0];
+  const hoy = [...misPedidos, ...local].filter(p => p.fecha === today && p.vendedor === currentVendor);
+  const total = hoy.reduce((s,p) => s+p.monto, 0);
+  const cobrado = hoy.filter(p=>p.pagado==='Si').reduce((s,p)=>s+p.monto,0);
+  const pend = total - cobrado;
+  document.getElementById('stat-pedidos').textContent = hoy.length;
+  document.getElementById('stat-total').textContent = fmtShort(total);
+  document.getElementById('stat-cobrado').textContent = fmtShort(cobrado);
+  document.getElementById('stat-pendiente').textContent = fmtShort(pend);
+  document.getElementById('stat-comision').textContent = fmtPrice(total * 0.02);
+}
+
+// UTILS
+function fmtPrice(n) {
+  return '$ ' + Number(n||0).toLocaleString('es-AR', {minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function fmtShort(n) {
+  const v = Number(n||0);
+  if(v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if(v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// =============================================
+//   GPS / UBICACIÓN DE CLIENTES
+// =============================================
+let gpsData = { lat: null, lng: null };
+
+async function checkClienteUbicacion(nombre) {
+  const badge = document.getElementById('gps-badge');
+  const btn = document.getElementById('btn-gps');
+  gpsData = { lat: null, lng: null };
+  if (!nombre || nombre.length < 2) {
+    badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    btn.textContent = '📍 Capturar ubicación'; return;
+  }
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') return;
+  if (!supabaseClient) initSupabase();
+  try {
+    const { data } = await supabaseClient
+      .from('clientes').select('lat,lng').eq('nombre', nombre).maybeSingle();
+    if (data && data.lat) {
+      badge.className = 'gps-badge gps-already';
+      badge.textContent = '✅ Ubicación guardada';
+      btn.textContent = '🔄 Actualizar ubicación';
+    } else {
+      badge.className = 'gps-badge gps-none';
+      badge.textContent = 'Sin ubicación';
+      btn.textContent = '📍 Capturar ubicación';
+    }
+  } catch(e) {}
+}
+
+function captureGPS() {
+  const cliente = document.getElementById('inp-cliente').value.trim();
+  if (!cliente) { showToast('⚠️ Primero ingresá el nombre del cliente', 'error'); return; }
+
+  const btn = document.getElementById('btn-gps');
+  const badge = document.getElementById('gps-badge');
+  btn.disabled = true;
+  btn.textContent = '⏳ Localizando...';
+  badge.className = 'gps-badge gps-loading';
+  badge.textContent = 'Buscando GPS...';
+
+  if (!navigator.geolocation) {
+    showToast('❌ GPS no disponible en este dispositivo', 'error');
+    btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+    badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      gpsData.lat = pos.coords.latitude;
+      gpsData.lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+
+      badge.className = 'gps-badge gps-saved';
+      badge.textContent = `📍 ±${acc}m`;
+      btn.textContent = '✅ Guardando...';
+
+      await saveClienteUbicacion(cliente, gpsData.lat, gpsData.lng);
+      btn.textContent = '✅ Guardado';
+      btn.disabled = false;
+    },
+    (err) => {
+      const msg = err.code === 1 ? 'Permiso de GPS denegado' :
+                  err.code === 2 ? 'GPS no disponible' : 'Tiempo de espera agotado';
+      showToast('❌ ' + msg, 'error');
+      btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
+      badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+async function saveClienteUbicacion(nombre, lat, lng) {
+  if (SUPABASE_URL === 'TU_SUPABASE_URL') {
+    showToast('⚠️ Supabase no configurado — ubicación solo guardada en este dispositivo', '');
+    return;
+  }
+  if (!supabaseClient) initSupabase();
+  try {
+    const { error } = await supabaseClient.from('clientes').upsert(
+      [{ nombre, lat, lng, capturado_por: currentVendor, capturado_at: new Date().toISOString() }],
+      { onConflict: 'nombre' }
+    );
+    if (!error) {
+      showToast('📍 Ubicación guardada para ' + nombre, 'success');
+      document.getElementById('gps-badge').className = 'gps-badge gps-already';
+      document.getElementById('gps-badge').textContent = '✅ Ubicación guardada';
+    } else {
+      showToast('⚠️ Error al guardar ubicación online', 'error');
+    }
+  } catch(e) { showToast('⚠️ Error al conectar con el servidor', 'error'); }
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.product-search-wrap')) {
+    document.getElementById('prod-dropdown').classList.remove('open');
+  }
+});
+
+// Auto-login if session exists
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('vendedor');
+  if (saved) { currentVendor = saved; showApp(); }
+});
+</script>
+</body>
+</html>
