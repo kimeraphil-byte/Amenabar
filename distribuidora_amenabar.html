@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distribuidora Amenabar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 220px; background: #1a1a2e; color: #fff; display: flex; flex-direction: column; z-index: 100; }
+  .sidebar-logo { padding: 24px 20px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+  .sidebar-logo h1 { font-size: 16px; font-weight: 700; }
+  .sidebar-logo span { font-size: 11px; color: #8892b0; display: block; margin-top: 2px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; cursor: pointer; font-size: 14px; color: #8892b0; transition: all 0.2s; border-left: 3px solid transparent; }
+  .nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  .nav-item.active { color: #fff; background: rgba(99,102,241,0.2); border-left-color: #6366f1; }
+  .nav-icon { width: 18px; text-align: center; font-size: 16px; }
+  .main { margin-left: 220px; min-height: 100vh; }
+  .topbar { background: #fff; padding: 16px 28px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+  .topbar h2 { font-size: 18px; font-weight: 600; }
+  .page { padding: 28px; display: none; }
+  .page.active { display: block; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .card-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card-value { font-size: 22px; font-weight: 700; }
+  .card-sub { font-size: 12px; color: #6b7280; margin-top: 4px; }
+  .card.green .card-value { color: #059669; }
+  .card.red .card-value { color: #dc2626; }
+  .card.blue .card-value { color: #6366f1; }
+  .card.orange .card-value { color: #d97706; }
+  .card.purple .card-value { color: #7c3aed; }
+  .table-container { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+  .table-header { padding: 16px 20px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .table-title { font-size: 15px; font-weight: 600; }
+  .table-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f9fafb; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; color: #6b7280; letter-spacing: 0.5px; cursor: pointer; user-select: none; }
+  th:hover { background: #f3f4f6; }
+  td { padding: 10px 14px; border-top: 1px solid #f3f4f6; }
+  tr:hover td { background: #fafafa; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #d1fae5; color: #059669; }
+  .badge-red { background: #fee2e2; color: #dc2626; }
+  .badge-yellow { background: #fef3c7; color: #d97706; }
+  .badge-blue { background: #e0e7ff; color: #6366f1; }
+  .badge-gray { background: #f3f4f6; color: #6b7280; }
+  .badge-purple { background: #ede9fe; color: #7c3aed; }
+  input, select { border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; color: #1a1a2e; background: #fff; }
+  input:focus, select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover { background: #4f46e5; }
+  .btn-ghost { background: transparent; color: #6b7280; border: 1px solid #e5e7eb; }
+  .btn-ghost:hover { background: #f9fafb; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #fff; border-radius: 16px; padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 4px; }
+  .form-group input, .form-group select { width: 100%; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .bar-label { width: 170px; text-align: right; color: #6b7280; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 24px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #6366f1; border-radius: 4px; transition: width 0.6s; display: flex; align-items: center; padding-left: 6px; }
+  .bar-fill.green { background: #059669; }
+  .bar-fill.orange { background: #d97706; }
+  .bar-fill.red { background: #dc2626; }
+  .bar-fill.purple { background: #7c3aed; }
+  .bar-value { width: 90px; font-size: 12px; color: #374151; font-weight: 600; }
+  .pagination { display: flex; align-items: center; gap: 6px; padding: 12px 20px; border-top: 1px solid #f3f4f6; }
+  .page-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .page-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+  .page-btn:hover:not(.active) { background: #f9fafb; }
+  .page-info { font-size: 12px; color: #6b7280; margin-left: auto; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .mt { margin-top: 20px; }
+  .empty-state { padding: 48px; text-align: center; color: #9ca3af; font-size: 14px; }
+  
+  /* Waterfall chart */
+  .waterfall { display: flex; align-items: flex-end; gap: 8px; height: 240px; padding: 0 20px 20px; }
+  .wf-col { display: flex; flex-direction: column; align-items: center; flex: 1; gap: 4px; }
+  .wf-bar-wrap { display: flex; flex-direction: column-reverse; flex: 1; width: 100%; align-items: center; position: relative; }
+  .wf-bar { width: 70%; border-radius: 6px 6px 0 0; transition: height 0.5s; }
+  .wf-label { font-size: 10px; color: #6b7280; text-align: center; }
+  .wf-val { font-size: 11px; font-weight: 700; color: #374151; }
+  
+  /* P&L table */
+  .pnl-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .pnl-table tr td { padding: 10px 20px; border-bottom: 1px solid #f3f4f6; }
+  .pnl-table .section-row td { background: #f9fafb; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #9ca3af; letter-spacing: 0.5px; padding: 8px 20px; }
+  .pnl-table .total-row td { font-weight: 700; font-size: 15px; background: #f0f9ff; border-top: 2px solid #e0e7ff; }
+  .pnl-table .indent td:first-child { padding-left: 36px; color: #6b7280; }
+  .pnl-positive { color: #059669; font-weight: 700; }
+  .pnl-negative { color: #dc2626; font-weight: 700; }
+  
+  .tabs { display: flex; gap: 4px; background: #f3f4f6; padding: 4px; border-radius: 10px; margin-bottom: 20px; width: fit-content; }
+  .tab { padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: #6b7280; transition: all 0.15s; }
+  .tab.active { background: #fff; color: #1a1a2e; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  
+  .margen-pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .margen-high { background: #d1fae5; color: #059669; }
+  .margen-mid { background: #fef3c7; color: #d97706; }
+  .margen-low { background: #fee2e2; color: #dc2626; }
+
+  /* === LOGÍSTICA === */
+  #map { height: 540px; width: 100%; border-radius: 0 0 12px 12px; z-index: 1; }
+  .route-panel { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+  .route-step { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
+  .route-step:last-child { border-bottom: none; }
+  .route-num { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .route-info { flex: 1; }
+  .route-name { font-size: 14px; font-weight: 600; }
+  .route-dist { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .logistics-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 16px; margin-bottom: 20px; }
+  .no-gps-msg { text-align: center; padding: 40px; color: #9ca3af; }
+  .cli-gps-item { display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid #f3f4f6; cursor:pointer; font-size:13px; transition:background 0.1s; }
+  .cli-gps-item:hover { background:#f0f4ff; }
+  .cli-gps-item:last-child { border-bottom:none; }
+  .cli-gps-dot { width:10px; height:10px; border-radius:50%; background:#6366f1; flex-shrink:0; }
+  .client-dot { width: 10px; height: 10px; border-radius: 50%; background: #6366f1; display: inline-block; margin-right: 6px; }
+  .supabase-cfg { background: #fef3c7; border: 1px solid #fbbf24; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #92400e; }
+
+  /* Loading overlay */
+  #loading-overlay { position:fixed; inset:0; background:#1a1a2e; z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; }
+  #loading-overlay h2 { font-size:22px; font-weight:700; margin-bottom:8px; }
+  #loading-overlay p { font-size:14px; color:#8892b0; }
+  .spinner { width:44px; height:44px; border:4px solid rgba(99,102,241,0.3); border-top-color:#6366f1; border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:20px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #loading-error { display:none; background:#fee2e2; color:#dc2626; border-radius:8px; padding:12px 20px; margin-top:16px; font-size:13px; max-width:400px; text-align:center; }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <h2>Distribuidora Amenabar</h2>
+  <p>Cargando datos desde la nube...</p>
+  <div id="loading-error"></div>
+</div>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h1>🏪 Amenabar</h1>
+    <span>Distribuidora</span>
+  </div>
+  <nav style="margin-top:8px;flex:1">
+    <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item" onclick="showPage('rentabilidad',this)"><span class="nav-icon">💰</span> Rentabilidad</div>
+    <div class="nav-item" onclick="showPage('pedidos',this)"><span class="nav-icon">📦</span> Pedidos</div>
+    <div class="nav-item" onclick="showPage('clientes',this)"><span class="nav-icon">👥</span> Clientes</div>
+    <div class="nav-item" onclick="showPage('productos',this)"><span class="nav-icon">🛒</span> Productos</div>
+    <div class="nav-item" onclick="showPage('gastos',this)"><span class="nav-icon">💸</span> Gastos</div>
+    <div class="nav-item" onclick="showPage('reportes',this)"><span class="nav-icon">📈</span> Reportes</div>
+    <div class="nav-item" onclick="showPage('logistica',this)"><span class="nav-icon">🗺️</span> Logística</div>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h2 id="page-title">Dashboard</h2>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:12px;color:#6b7280">📅 Mayo – Junio 2026</div>
+      <button class="btn btn-ghost" onclick="openBackupModal()" style="font-size:12px;padding:6px 12px" title="Backup y restauración de datos">💾 Backup</button>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="cards" id="dash-cards"></div>
+    <div class="grid-2">
+      <div class="table-container">
+        <div class="table-header"><span class="table-title">Ventas por Vendedor (Mayo)</span></div>
+        <div style="padding:20px"><div class="bar-chart" id="chart-vendedores"></div></div>
+      </div>
+      <div class="table-container">
+        <div class="table-header"><span class="table-title">Top 10 Clientes (Mayo)</span></div>
+        <div style="padding:20px"><div class="bar-chart" id="chart-clientes"></div></div>
+      </div>
+    </div>
+    <div class="mt table-container">
+      <div class="table-header"><span class="table-title">Últimos pedidos</span></div>
+      <table id="dash-recent"></table>
+    </div>
+  </div>
+
+  <!-- RENTABILIDAD -->
+  <div class="page" id="page-rentabilidad">
+    <div class="tabs">
+      <div class="tab active" onclick="showRentTab('resumen',this)">Resumen P&L</div>
+      <div class="tab" onclick="showRentTab('productos',this)">Por Producto</div>
+      <div class="tab" onclick="showRentTab('dias',this)">Por Día</div>
+      <div class="tab" onclick="showRentTab('vendedores',this)">Por Vendedor</div>
+    </div>
+
+    <!-- Tab Resumen -->
+    <div id="rent-resumen">
+      <div class="cards">
+        <div class="card blue"><div class="card-label">Venta Total Mayo</div><div class="card-value" id="r-venta"></div></div>
+        <div class="card red"><div class="card-label">Costo Mercadería</div><div class="card-value" id="r-costo"></div><div class="card-sub">Precio distribuidora (super +5%)</div></div>
+        <div class="card green"><div class="card-label">Ganancia Bruta</div><div class="card-value" id="r-bruta"></div><div class="card-sub" id="r-bruta-pct"></div></div>
+        <div class="card orange"><div class="card-label">Gastos Operativos</div><div class="card-value" id="r-gastos"></div><div class="card-sub">Diesel, reparaciones, comisiones</div></div>
+        <div class="card purple"><div class="card-label">Resultado Operativo</div><div class="card-value" id="r-neta"></div><div class="card-sub" id="r-neta-pct"></div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="table-container">
+          <div class="table-header"><span class="table-title">Estado de Resultados — Mayo 2026</span></div>
+          <table class="pnl-table" id="pnl-table"></table>
+        </div>
+        <div class="table-container">
+          <div class="table-header"><span class="table-title">Composición de Gastos</span></div>
+          <div style="padding:20px"><div class="bar-chart" id="chart-gastos-comp"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Productos -->
+    <div id="rent-productos" style="display:none">
+      <div class="table-container">
+        <div class="table-header">
+          <span class="table-title">Rentabilidad por Producto (Mayo)</span>
+          <div class="table-filters">
+            <input type="text" placeholder="Buscar..." id="rp-search" oninput="filterRentProd()" style="width:200px">
+            <select id="rp-sort" onchange="filterRentProd()">
+              <option value="ganancia">Mayor ganancia $</option>
+              <option value="margen">Mayor margen %</option>
+              <option value="venta">Mayor venta $</option>
+              <option value="qty">Mayor cantidad</option>
+            </select>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th onclick="sortRentProd('desc')">Producto ↕</th>
+            <th onclick="sortRentProd('qty')">Cajas</th>
+            <th onclick="sortRentProd('venta')">Venta Total</th>
+            <th onclick="sortRentProd('costo_distri')">Costo Distrib.</th>
+            <th onclick="sortRentProd('ganancia')">Ganancia $</th>
+            <th onclick="sortRentProd('margen')">Margen %</th>
+          </tr></thead>
+          <tbody id="rp-tbody"></tbody>
+        </table>
+        <div class="pagination" id="rp-pag"></div>
+      </div>
+    </div>
+
+    <!-- Tab Días -->
+    <div id="rent-dias" style="display:none">
+      <div class="cards" id="dias-cards"></div>
+      <div class="grid-2">
+        <div class="table-container">
+          <div class="table-header"><span class="table-title">Venta y Ganancia por Día de Reparto</span></div>
+          <table>
+            <thead><tr><th>Día</th><th>Venta</th><th>Costo Distrib.</th><th>Ganancia</th><th>Margen</th></tr></thead>
+            <tbody id="dias-tbody"></tbody>
+          </table>
+        </div>
+        <div class="table-container">
+          <div class="table-header"><span class="table-title">Ganancia por Día</span></div>
+          <div style="padding:20px"><div class="bar-chart" id="chart-dias-rent"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Vendedores -->
+    <div id="rent-vendedores" style="display:none">
+      <div class="table-container">
+        <div class="table-header"><span class="table-title">Rentabilidad por Vendedor (Mayo)</span></div>
+        <table>
+          <thead><tr><th>Vendedor</th><th>Ventas</th><th>% del Total</th><th>Ganancia Bruta (13.15%)</th><th>Comisión (2%)</th><th>Ganancia Neta</th></tr></thead>
+          <tbody id="vend-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PEDIDOS -->
+  <div class="page" id="page-pedidos">
+    <div class="table-container">
+      <div class="table-header">
+        <span class="table-title">Todos los pedidos</span>
+        <div class="table-filters">
+          <input type="text" placeholder="Buscar cliente..." id="ped-search" oninput="filterPedidos()" style="width:200px">
+          <select id="ped-mes" onchange="filterPedidos()">
+            <option value="">Todos los meses</option>
+            <option value="Mayo">Mayo</option>
+            <option value="Junio">Junio</option>
+          </select>
+          <select id="ped-vendedor" onchange="filterPedidos()">
+            <option value="">Todos los vendedores</option>
+            <option>Mariano</option><option>Pablo</option><option>Jordi</option>
+          </select>
+          <select id="ped-pagado" onchange="filterPedidos()">
+            <option value="">Todo</option>
+            <option value="Si">Pagado</option>
+            <option value="No">Pendiente</option>
+          </select>
+          <button class="btn btn-primary" onclick="openModal('modal-pedido')">+ Nuevo</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th>Cliente</th><th>Monto</th><th>Pagado</th>
+          <th>Efectivo</th><th>Transferencia</th><th>Entregado</th><th>Vendedor</th><th>Obs</th>
+        </tr></thead>
+        <tbody id="ped-tbody"></tbody>
+      </table>
+      <div class="pagination" id="ped-pag"></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div class="page" id="page-clientes">
+    <div class="table-container">
+      <div class="table-header">
+        <span class="table-title">Clientes registrados</span>
+        <div class="table-filters">
+          <input type="text" placeholder="Buscar cliente..." id="cli-search" oninput="filterClientes()" style="width:200px">
+          <select id="cli-vendedor" onchange="filterClientes()">
+            <option value="">Todos los vendedores</option>
+            <option>Mariano</option><option>Pablo</option><option>Jordi</option>
+          </select>
+          <button class="btn btn-ghost" onclick="verTodosEnMapa()" style="color:#6366f1;border-color:#c7d2fe">🗺️ Ver en mapa</button>
+          <button class="btn btn-primary" onclick="resetClienteForm();openModal('modal-cliente')">+ Nuevo</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Localidad</th><th>Vendedor</th><th>Pedidos</th><th>Total</th><th>GPS</th><th></th></tr></thead>
+        <tbody id="cli-tbody"></tbody>
+      </table>
+      <div class="pagination" id="cli-pag"></div>
+    </div>
+  </div>
+
+  <!-- PRODUCTOS -->
+  <div class="page" id="page-productos">
+    <div class="table-container">
+      <div class="table-header">
+        <span class="table-title">Lista de precios (Mayo 2026)</span>
+        <div class="table-filters">
+          <input type="text" placeholder="Buscar producto..." id="prod-search" oninput="filterProductos()" style="width:200px">
+          <select id="prod-rubro" onchange="filterProductos()">
+            <option value="">Todos los rubros</option>
+            <option>ALIMENTOS</option><option>ALMACEN</option><option>BEBIDAS</option><option>LIMPIEZA</option>
+          </select>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Código</th><th>Descripción</th><th>UxB</th><th>Rubro</th>
+          <th>Costo Super</th><th>%</th><th>Costo Distrib.</th>
+        </tr></thead>
+        <tbody id="prod-tbody"></tbody>
+      </table>
+      <div class="pagination" id="prod-pag"></div>
+    </div>
+  </div>
+
+  <!-- GASTOS -->
+  <div class="page" id="page-gastos">
+    <div class="cards" id="gastos-cards"></div>
+    <div class="table-container">
+      <div class="table-header">
+        <span class="table-title">Gastos Mayo 2026</span>
+        <button class="btn btn-primary" onclick="openModal('modal-gasto')">+ Nuevo</button>
+      </div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Descripción</th><th>Monto</th></tr></thead>
+        <tbody id="gas-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- REPORTES -->
+  <div class="page" id="page-reportes">
+    <div class="cards" id="rep-cards"></div>
+    <div class="grid-2">
+      <div class="table-container">
+        <div class="table-header"><span class="table-title">Comisiones por Vendedor (Mayo)</span></div>
+        <table>
+          <thead><tr><th>Vendedor</th><th>Ventas</th><th>Comisión 2%</th></tr></thead>
+          <tbody id="rep-comisiones"></tbody>
+        </table>
+      </div>
+      <div class="table-container">
+        <div class="table-header"><span class="table-title">Top días de venta (Mayo)</span></div>
+        <div style="padding:20px"><div class="bar-chart" id="chart-dias"></div></div>
+      </div>
+    </div>
+    <div class="mt table-container">
+      <div class="table-header"><span class="table-title">Clientes con saldo pendiente</span></div>
+      <table>
+        <thead><tr><th>Cliente</th><th>Fecha</th><th>Monto</th><th>Vendedor</th></tr></thead>
+        <tbody id="rep-pendientes"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LOGÍSTICA -->
+  <div class="page" id="page-logistica">
+    <div id="log-warning" class="supabase-cfg" style="display:none">
+      ⚠️ Configurá SUPABASE_URL y SUPABASE_KEY en el código para ver ubicaciones en tiempo real.
+    </div>
+    <div class="logistics-stats" id="logistics-stats"></div>
+    <div id="camioneta-bar" style="display:none;margin-bottom:16px;background:#fff;border-radius:12px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:20px" id="cam-emoji">🚚</span>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700" id="cam-status">Sin señal</div>
+        <div style="font-size:12px;color:#6b7280" id="cam-time"></div>
+      </div>
+      <span id="cam-badge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:#f3f4f6;color:#6b7280">Inactivo</span>
+    </div>
+    <div class="grid-2" style="margin-bottom:16px">
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px">FECHA DE RUTA</label>
+        <input type="date" id="log-fecha" style="width:100%" onchange="buildRoute()">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px">VENDEDOR</label>
+        <select id="log-vendedor" style="width:100%" onchange="buildRoute()">
+          <option value="">Todos</option>
+          <option>Mariano</option>
+          <option>Pablo</option>
+          <option>Jordi</option>
+        </select>
+      </div>
+    </div>
+    <!-- Depósito -->
+    <div style="margin-bottom:20px;background:#fff;border-radius:12px;padding:14px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:#374151">🏭 Depósito</span>
+      <input type="number" id="dep-lat" step="0.00001" placeholder="Latitud" style="width:130px;font-size:12px" oninput="saveDepositoCoords()">
+      <input type="number" id="dep-lng" step="0.00001" placeholder="Longitud" style="width:130px;font-size:12px" oninput="saveDepositoCoords()">
+      <button class="btn btn-ghost" onclick="captureDepositoGPS()" id="btn-dep-gps" style="font-size:12px">📍 Capturar GPS</button>
+      <span id="dep-badge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:#fef3c7;color:#d97706">Sin ubicación</span>
+      <button class="btn btn-primary" onclick="buildRoute()" style="font-size:12px;margin-left:auto">Calcular ruta</button>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div class="table-container">
+          <div class="table-header" style="justify-content:space-between">
+            <span class="table-title">🗺️ Mapa de clientes</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span id="map-cli-count" style="font-size:12px;color:#6b7280"></span>
+              <button class="btn btn-primary" onclick="loadLogistica()">🔄 Actualizar</button>
+            </div>
+          </div>
+          <div id="map"></div>
+          <div style="border-top:1px solid #f3f4f6">
+            <div style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:12px;font-weight:700;color:#374151">📋 Clientes con GPS</span>
+              <input type="text" id="map-search" placeholder="Buscar cliente..." style="font-size:12px;padding:5px 10px;width:200px" oninput="filterMapList(this.value)">
+            </div>
+            <div id="cli-gps-list" style="max-height:220px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="table-container" style="height:100%">
+          <div class="table-header"><span class="table-title">📍 Ruta optimizada del día</span></div>
+          <div id="route-list" style="padding:8px;max-height:500px;overflow-y:auto">
+            <div class="no-gps-msg">Seleccioná una fecha para calcular la ruta</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt table-container">
+      <div class="table-header"><span class="table-title">Clientes activos sin GPS cargado</span></div>
+      <table>
+        <thead><tr><th>Cliente</th><th>Pedidos</th><th>Estado</th></tr></thead>
+        <tbody id="sin-gps-list"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-pedido">
+  <div class="modal">
+    <h3>Nuevo Pedido</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha</label><input type="date" id="np-fecha"></div>
+      <div class="form-group"><label>Vendedor</label>
+        <select id="np-vendedor"><option>Mariano</option><option>Pablo</option><option>Jordi</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Cliente</label><input type="text" id="np-cliente" list="lista-clientes" placeholder="Nombre del cliente">
+      <datalist id="lista-clientes"></datalist>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Monto Total</label><input type="number" id="np-monto" placeholder="0"></div>
+      <div class="form-group"><label>Pagado</label>
+        <select id="np-pagado"><option value="Si">Sí</option><option value="No">No</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Efectivo</label><input type="number" id="np-efectivo" placeholder="0"></div>
+      <div class="form-group"><label>Transferencia</label><input type="number" id="np-transferencia" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Entregado</label>
+        <select id="np-entregado"><option value="Si">Sí</option><option value="">Pendiente</option></select>
+      </div>
+      <div class="form-group"><label>Observaciones</label><input type="text" id="np-obs" placeholder="..."></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pedido')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePedido()">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal">
+    <h3 id="nc-title">Nuevo Cliente</h3>
+    <input type="hidden" id="nc-id" value="">
+    <div class="form-row">
+      <div class="form-group"><label>Nombre</label><input type="text" id="nc-nombre" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Vendedor asignado</label>
+        <select id="nc-vendedor"><option>Mariano</option><option>Pablo</option><option>Jordi</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>DNI / CUIT</label><input type="text" id="nc-dni" placeholder="20-12345678-9"></div>
+      <div class="form-group"><label>Teléfono / Celular</label><input type="text" id="nc-telefono" placeholder="351 000-0000"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Local / Comercio</label><input type="text" id="nc-local" placeholder="Nombre del local"></div>
+      <div class="form-group"><label>Localidad / Zona</label><input type="text" id="nc-localidad" placeholder="Barrio o ciudad"></div>
+    </div>
+    <div class="form-group"><label>Dirección</label><input type="text" id="nc-direccion" placeholder="Calle y número"></div>
+    <div class="form-group"><label>Horarios</label><input type="text" id="nc-horarios" placeholder="Ej: Lun-Vie 9-18hs"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-cliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-gasto">
+  <div class="modal">
+    <h3>Nuevo Gasto</h3>
+    <div class="form-group"><label>Fecha</label><input type="date" id="ng-fecha"></div>
+    <div class="form-group"><label>Descripción</label><input type="text" id="ng-desc" placeholder="Descripción del gasto"></div>
+    <div class="form-group"><label>Monto</label><input type="number" id="ng-monto" placeholder="0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-gasto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveGasto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================
+//   SUPABASE — configuración central
+// =============================================
+const SB_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
+let sb = null;
+function getSB() {
+  if (!sb) sb = supabase.createClient(SB_URL, SB_KEY);
+  return sb;
+}
+
+let pedidos = [];
+let clientes = [];
+let productos = [];
+let gastos = [];
+let rentProds = [];
+let RENT = { resumen: { venta_total:0, costo_super:0, costo_distri:0, ganancia_bruta:0, margen_bruto_pct:'0.00', dias_reparto:[], comisiones_vendedores:{} } };
+
+function computeRENT() {
+  const mayo = pedidos.filter(p => p.mes === 'Mayo');
+  const venta_total = mayo.reduce((s,p) => s+(p.monto||0), 0);
+  const MARGEN = 0.1315;
+  const costo_distri = venta_total * (1 - MARGEN);
+  const costo_super = costo_distri / 1.05;
+  const ganancia_bruta = venta_total - costo_distri;
+  const diasMap = {};
+  mayo.forEach(p => {
+    if (!diasMap[p.fecha]) diasMap[p.fecha] = { dia: p.fecha, venta: 0, costo_distri: 0 };
+    diasMap[p.fecha].venta += (p.monto||0);
+  });
+  Object.values(diasMap).forEach(d => { d.costo_distri = d.venta * (1 - MARGEN); });
+  const dias_reparto = Object.values(diasMap).sort((a,b) => a.dia.localeCompare(b.dia));
+  const vendsMap = {};
+  mayo.forEach(p => {
+    if (!vendsMap[p.vendedor]) vendsMap[p.vendedor] = { ventas: 0, comision: 0 };
+    vendsMap[p.vendedor].ventas += (p.monto||0);
+  });
+  Object.values(vendsMap).forEach(v => { v.comision = v.ventas * 0.02; });
+  RENT = { resumen: { venta_total, costo_super, costo_distri, ganancia_bruta,
+    margen_bruto_pct: (MARGEN * 100).toFixed(2), dias_reparto, comisiones_vendedores: vendsMap } };
+}
+
+const pag = {pedidos:1, clientes:1, productos:1, rp:1};
+const PS = 20;
+
+const fmt = n => '$ ' + Number(n||0).toLocaleString('es-AR', {minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtS = n => { const v=Number(n||0); if(v>=1e6) return '$ '+(v/1e6).toFixed(2)+'M'; if(v>=1e3) return '$ '+(v/1e3).toFixed(0)+'K'; return '$ '+v.toFixed(0); };
+const pct = n => Number(n||0).toFixed(1)+'%';
+
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+  const titles={dashboard:'Dashboard',rentabilidad:'Rentabilidad',pedidos:'Pedidos',clientes:'Clientes',productos:'Productos',gastos:'Gastos',reportes:'Reportes',logistica:'Logística GPS'};
+  document.getElementById('page-title').textContent=titles[name]||name;
+  const renders={pedidos:renderPedidos,clientes:renderClientes,productos:renderProductos,gastos:renderGastos,reportes:renderReportes,rentabilidad:renderRentabilidad,logistica:initLogistica};
+  if(renders[name]) renders[name]();
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if(id==='modal-pedido') {
+    document.getElementById('np-fecha').value=new Date().toISOString().split('T')[0];
+    const dl=document.getElementById('lista-clientes');
+    dl.innerHTML=clientes.map(c=>`<option value="${c.nombre}">`).join('');
+  }
+  if(id==='modal-gasto') document.getElementById('ng-fecha').value=new Date().toISOString().split('T')[0];
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// DASHBOARD
+function renderDashboard() {
+  const mayo=pedidos.filter(p=>p.mes==='Mayo'), junio=pedidos.filter(p=>p.mes==='Junio');
+  const tM=mayo.reduce((s,p)=>s+p.monto,0), tJ=junio.reduce((s,p)=>s+p.monto,0);
+  const pend=mayo.filter(p=>p.pagado!=='Si'), mPend=pend.reduce((s,p)=>s+p.monto,0);
+  const tG=gastos.reduce((s,g)=>s+g.monto,0);
+  document.getElementById('dash-cards').innerHTML=`
+    <div class="card blue"><div class="card-label">Ventas Mayo</div><div class="card-value">${fmtS(tM)}</div><div class="card-sub">${mayo.length} pedidos</div></div>
+    <div class="card green"><div class="card-label">Ventas Junio</div><div class="card-value">${fmtS(tJ)}</div><div class="card-sub">${junio.length} pedidos</div></div>
+    <div class="card purple"><div class="card-label">Ganancia Bruta Mayo</div><div class="card-value">${fmtS(RENT.resumen.ganancia_bruta)}</div><div class="card-sub">Margen 13.15%</div></div>
+    <div class="card orange"><div class="card-label">Saldo Pendiente</div><div class="card-value">${fmtS(mPend)}</div><div class="card-sub">${pend.length} pedidos sin cobrar</div></div>
+  `;
+  const vendMap={};
+  mayo.forEach(p=>{vendMap[p.vendedor]=(vendMap[p.vendedor]||0)+p.monto;});
+  const maxV=Math.max(...Object.values(vendMap));
+  document.getElementById('chart-vendedores').innerHTML=Object.entries(vendMap).sort((a,b)=>b[1]-a[1]).map(([v,t])=>`
+    <div class="bar-row"><div class="bar-label">${v}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${(t/maxV*100).toFixed(1)}%"></div></div>
+    <div class="bar-value">${fmtS(t)}</div></div>`).join('');
+  const cliMap={};
+  mayo.forEach(p=>{const b=p.cliente.split(' Nº')[0].split(' N°')[0].trim();cliMap[b]=(cliMap[b]||0)+p.monto;});
+  const topC=Object.entries(cliMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxC=topC[0]?.[1]||1;
+  document.getElementById('chart-clientes').innerHTML=topC.map(([c,t])=>`
+    <div class="bar-row"><div class="bar-label" title="${c}">${c.length>22?c.slice(0,22)+'…':c}</div>
+    <div class="bar-track"><div class="bar-fill green" style="width:${(t/maxC*100).toFixed(1)}%"></div></div>
+    <div class="bar-value">${fmtS(t)}</div></div>`).join('');
+  const recent=[...pedidos].reverse().slice(0,8);
+  document.getElementById('dash-recent').innerHTML=`<thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Pagado</th><th>Vendedor</th></tr></thead><tbody>`+
+    recent.map(p=>`<tr><td>${p.fecha}</td><td>${p.cliente}</td><td>${fmt(p.monto)}</td>
+      <td><span class="badge badge-${p.pagado==='Si'?'green':'red'}">${p.pagado==='Si'?'Pagado':'Pendiente'}</span></td>
+      <td>${p.vendedor}</td></tr>`).join('')+'</tbody>';
+}
+
+// RENTABILIDAD
+function showRentTab(name, el) {
+  ['resumen','productos','dias','vendedores'].forEach(t=>{
+    document.getElementById('rent-'+t).style.display='none';
+  });
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('rent-'+name).style.display='block';
+  if(el) el.classList.add('active');
+  if(name==='productos') renderRentProd();
+  if(name==='dias') renderDias();
+  if(name==='vendedores') renderVendedores();
+}
+
+function renderRentabilidad() {
+  const r = RENT.resumen;
+  document.getElementById('r-venta').textContent = fmtS(r.venta_total);
+  document.getElementById('r-costo').textContent = fmtS(r.costo_distri);
+  document.getElementById('r-bruta').textContent = fmtS(r.ganancia_bruta);
+  document.getElementById('r-bruta-pct').textContent = 'Margen bruto: '+r.margen_bruto_pct+'%';
+  
+  // Gastos operativos (sin "entregas a Edgar Schwank" que son cuotas/inversión)
+  const comisVend = 229359+109628+160785; // Jordi+Pablo+Mariano 2%
+  const comisDeposito = 220329+198843+55959; // Alan+Matias+Ezequiel
+  const gastosOp = 100000+150000+330000+136000; // diesel, colab Pablo, reparaciones, Luciano
+  const totalOp = comisVend + comisDeposito + gastosOp;
+  const resultadoOp = r.ganancia_bruta - totalOp;
+  
+  document.getElementById('r-gastos').textContent = fmtS(totalOp);
+  document.getElementById('r-neta').textContent = fmtS(resultadoOp);
+  document.getElementById('r-neta-pct').textContent = 'Margen operativo: '+(resultadoOp/r.venta_total*100).toFixed(1)+'%';
+  
+  // P&L Table
+  const rows = [
+    {type:'section', label:'INGRESOS'},
+    {type:'item', label:'Ventas brutas Mayo', val:r.venta_total, pos:true},
+    {type:'section', label:'COSTO MERCADERÍA'},
+    {type:'item', label:'Costo Super (precio compra)', val:-r.costo_super, pos:false, indent:true},
+    {type:'item', label:'Mark-up distribuidora (+5%)', val:-(r.costo_distri-r.costo_super), pos:false, indent:true},
+    {type:'total', label:'GANANCIA BRUTA', val:r.ganancia_bruta, pos:true},
+    {type:'section', label:'GASTOS OPERATIVOS'},
+    {type:'item', label:'Comisiones vendedores (2%)', val:-comisVend, pos:false, indent:true},
+    {type:'item', label:'Comisiones depósito (Alan/Matías/Ezequiel)', val:-comisDeposito, pos:false, indent:true},
+    {type:'item', label:'Diesel y combustible', val:-100000, pos:false, indent:true},
+    {type:'item', label:'Mantenimiento vehículo', val:-330000, pos:false, indent:true},
+    {type:'item', label:'Colaboración Pablo', val:-150000, pos:false, indent:true},
+    {type:'item', label:'Transferencia Luciano Bianchi', val:-136000, pos:false, indent:true},
+    {type:'total', label:'RESULTADO OPERATIVO', val:resultadoOp, pos:resultadoOp>0},
+    {type:'section', label:'MOVIMIENTOS FINANCIEROS (no operativos)'},
+    {type:'item', label:'Entregas a Edgar Schwank (cuotas/inversión)', val:-10500000, pos:false, indent:true},
+    {type:'item', label:'Depósito del Contador', val:-1500000, pos:false, indent:true},
+  ];
+  document.getElementById('pnl-table').innerHTML = rows.map(row=>{
+    if(row.type==='section') return `<tr class="section-row"><td colspan="2">${row.label}</td></tr>`;
+    if(row.type==='total') return `<tr class="total-row"><td>${row.label}</td><td class="${row.pos?'pnl-positive':'pnl-negative'}">${fmt(row.val)}</td></tr>`;
+    return `<tr class="${row.indent?'indent':''}"><td>${row.label}</td><td class="${row.val>0?'pnl-positive':'pnl-negative'}">${fmt(row.val)}</td></tr>`;
+  }).join('');
+  
+  // Gastos composition chart
+  const gastosItems = [
+    ['Entregas Edgar Schwank', 10500000],
+    ['Depósito Contador', 1500000],
+    ['Comis. Vendedores 2%', comisVend],
+    ['Comis. Depósito', comisDeposito],
+    ['Mantenimiento', 330000],
+    ['Colob./Otros', 150000+136000],
+    ['Combustible', 100000],
+  ];
+  const maxG = gastosItems[0][1];
+  document.getElementById('chart-gastos-comp').innerHTML = gastosItems.map(([l,v])=>`
+    <div class="bar-row"><div class="bar-label">${l}</div>
+    <div class="bar-track"><div class="bar-fill red" style="width:${(v/maxG*100).toFixed(1)}%"></div></div>
+    <div class="bar-value">${fmtS(v)}</div></div>`).join('');
+}
+
+// Rent Productos
+let filteredRP = [...rentProds].sort((a,b)=>b.ganancia-a.ganancia);
+function filterRentProd() {
+  const q=(document.getElementById('rp-search')?.value||'').toLowerCase();
+  const sort=document.getElementById('rp-sort')?.value||'ganancia';
+  filteredRP = rentProds.filter(p=>!q||p.descripcion.toLowerCase().includes(q));
+  filteredRP.sort((a,b)=>b[sort]-a[sort]);
+  pag.rp=1; renderRentProd();
+}
+function sortRentProd(key) { filteredRP.sort((a,b)=>b[key]<a[key]?-1:1); renderRentProd(); }
+function renderRentProd() {
+  const start=(pag.rp-1)*PS;
+  const page=filteredRP.slice(start,start+PS);
+  document.getElementById('rp-tbody').innerHTML=page.map(p=>{
+    const mc = p.margen>=14?'margen-high':p.margen>=10?'margen-mid':'margen-low';
+    return `<tr>
+      <td style="font-weight:500">${p.descripcion}</td>
+      <td style="text-align:center">${p.qty.toFixed(0)}</td>
+      <td>${fmt(p.venta)}</td>
+      <td>${fmt(p.costo_distri)}</td>
+      <td style="font-weight:700;color:#059669">${fmt(p.ganancia)}</td>
+      <td><span class="margen-pill ${mc}">${p.margen.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty-state">Sin resultados</td></tr>';
+  renderPag('rp-pag', filteredRP.length, 'rp');
+}
+
+// Rent Días
+function renderDias() {
+  const dias = RENT.resumen.dias_reparto;
+  const totalVenta=dias.reduce((s,d)=>s+d.venta,0);
+  const totalGan=dias.reduce((s,d)=>s+(d.venta-d.costo_distri),0);
+  const mejorDia=dias.reduce((a,b)=>a.venta>b.venta?a:b);
+  document.getElementById('dias-cards').innerHTML=`
+    <div class="card blue"><div class="card-label">Días de reparto</div><div class="card-value">${dias.length}</div></div>
+    <div class="card green"><div class="card-label">Ganancia total días</div><div class="card-value">${fmtS(totalGan)}</div></div>
+    <div class="card purple"><div class="card-label">Mejor día</div><div class="card-value">${mejorDia.dia}</div><div class="card-sub">${fmtS(mejorDia.venta)}</div></div>
+    <div class="card orange"><div class="card-label">Promedio por día</div><div class="card-value">${fmtS(totalVenta/dias.length)}</div></div>
+  `;
+  document.getElementById('dias-tbody').innerHTML=dias.map(d=>{
+    const g=d.venta-d.costo_distri, m=g/d.venta*100;
+    const mc=m>=14?'badge-green':m>=10?'badge-yellow':'badge-red';
+    return `<tr>
+      <td style="font-weight:600">${d.dia}</td>
+      <td>${fmt(d.venta)}</td>
+      <td>${fmt(d.costo_distri)}</td>
+      <td style="font-weight:700;color:#059669">${fmt(g)}</td>
+      <td><span class="badge ${mc}">${m.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join('');
+  const maxG=Math.max(...dias.map(d=>d.venta-d.costo_distri));
+  document.getElementById('chart-dias-rent').innerHTML=dias.map(d=>{
+    const g=d.venta-d.costo_distri;
+    return `<div class="bar-row"><div class="bar-label">${d.dia}</div>
+      <div class="bar-track"><div class="bar-fill purple" style="width:${(g/maxG*100).toFixed(1)}%"></div></div>
+      <div class="bar-value">${fmtS(g)}</div></div>`;
+  }).join('');
+}
+
+// Rent Vendedores
+function renderVendedores() {
+  const total=RENT.resumen.venta_total;
+  const vends=RENT.resumen.comisiones_vendedores;
+  document.getElementById('vend-tbody').innerHTML=Object.entries(vends).sort((a,b)=>b[1].ventas-a[1].ventas).map(([v,d])=>{
+    const gb=d.ventas*0.1315, com=d.comision, neta=gb-com;
+    const pctTotal=(d.ventas/total*100).toFixed(1);
+    return `<tr>
+      <td style="font-weight:700;font-size:15px">${v}</td>
+      <td>${fmt(d.ventas)}</td>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div style="width:80px;height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden">
+          <div style="width:${pctTotal}%;height:100%;background:#6366f1;border-radius:4px"></div>
+        </div>${pctTotal}%</div></td>
+      <td style="color:#059669;font-weight:600">${fmt(gb)}</td>
+      <td style="color:#dc2626;font-weight:600">- ${fmt(com)}</td>
+      <td style="font-weight:700;color:#7c3aed">${fmt(neta)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// PEDIDOS
+let filteredPedidos=[...pedidos];
+function filterPedidos() {
+  const q=document.getElementById('ped-search').value.toLowerCase();
+  const mes=document.getElementById('ped-mes').value;
+  const vend=document.getElementById('ped-vendedor').value;
+  const pv=document.getElementById('ped-pagado').value;
+  filteredPedidos=pedidos.filter(p=>(!q||p.cliente.toLowerCase().includes(q))&&(!mes||p.mes===mes)&&(!vend||p.vendedor===vend)&&(!pv||p.pagado===pv||(pv==='No'&&p.pagado!=='Si')));
+  pag.pedidos=1; renderPedidos();
+}
+function renderPedidos() {
+  const start=(pag.pedidos-1)*PS, page=filteredPedidos.slice(start,start+PS);
+  document.getElementById('ped-tbody').innerHTML=page.map(p=>`<tr>
+    <td>${p.fecha}</td><td>${p.cliente}</td><td>${fmt(p.monto)}</td>
+    <td><span class="badge badge-${p.pagado==='Si'?'green':'red'}">${p.pagado==='Si'?'Pagado':'Pendiente'}</span></td>
+    <td>${fmt(p.efectivo)}</td><td>${fmt(p.transferencia)}</td>
+    <td><span class="badge badge-${p.entregado==='Si'?'green':'yellow'}">${p.entregado==='Si'?'Entregado':'Pendiente'}</span></td>
+    <td>${p.vendedor}</td><td style="color:#9ca3af">${p.obs}</td>
+  </tr>`).join('')||'<tr><td colspan="9" class="empty-state">Sin resultados</td></tr>';
+  renderPag('ped-pag',filteredPedidos.length,'pedidos');
+}
+
+// CLIENTES
+let filteredClientes=[...clientes];
+function filterClientes() {
+  const q=document.getElementById('cli-search').value.toLowerCase();
+  const vend=document.getElementById('cli-vendedor').value;
+  filteredClientes=clientes.filter(c=>(!q||c.nombre.toLowerCase().includes(q))&&(!vend||c.vendedor===vend));
+  pag.clientes=1; renderClientes();
+}
+function renderClientes() {
+  const start=(pag.clientes-1)*PS, page=filteredClientes.slice(start,start+PS);
+  document.getElementById('cli-tbody').innerHTML=page.map(c=>`<tr>
+    <td style="color:#9ca3af">${c.id}</td>
+    <td style="font-weight:600">${c.nombre}${c.local?'<br><span style="font-size:11px;color:#9ca3af">'+c.local+'</span>':''}</td>
+    <td style="font-size:12px">${c.telefono||'—'}</td>
+    <td style="font-size:12px">${c.localidad||'—'}</td>
+    <td><span class="badge badge-blue">${c.vendedor}</span></td>
+    <td>${c.pedidos}</td>
+    <td style="font-weight:600">${fmt(c.total_mayo)}</td>
+    <td>
+      ${c.lat
+        ? `<div style="display:flex;gap:4px;align-items:center">
+             <span class="badge badge-green" style="cursor:pointer" onclick="openGPSModal(${c.id})" title="${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}">📍 GPS</span>
+             <button class="btn btn-ghost" style="padding:2px 6px;font-size:10px" onclick="verClienteEnMapa(${c.lat},${c.lng},'${c.nombre.replace(/'/g,"\'")}')" title="Ver en mapa">🗺️</button>
+           </div>`
+        : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;color:#d97706;border-color:#fbbf24" onclick="openGPSModal(${c.id})">+ GPS</button>`}
+    </td>
+    <td><button class="btn btn-ghost" style="padding:4px 8px;font-size:11px" onclick="editCliente(${c.id})">✏️</button></td>
+  </tr>`).join('')||'<tr><td colspan="9" class="empty-state">Sin resultados</td></tr>';
+  renderPag('cli-pag',filteredClientes.length,'clientes');
+}
+function editCliente(id) {
+  const c=clientes.find(x=>x.id===id); if(!c) return;
+  document.getElementById('nc-title').textContent='Editar Cliente';
+  document.getElementById('nc-id').value=id;
+  document.getElementById('nc-nombre').value=c.nombre||'';
+  document.getElementById('nc-vendedor').value=c.vendedor||'Mariano';
+  document.getElementById('nc-dni').value=c.dni_cuit||'';
+  document.getElementById('nc-telefono').value=c.telefono||'';
+  document.getElementById('nc-local').value=c.local||'';
+  document.getElementById('nc-localidad').value=c.localidad||'';
+  document.getElementById('nc-direccion').value=c.direccion||'';
+  document.getElementById('nc-horarios').value=c.horarios||'';
+  openModal('modal-cliente');
+}
+
+// PRODUCTOS
+let filteredProductos=[...productos];
+function filterProductos() {
+  const q=document.getElementById('prod-search').value.toLowerCase();
+  const rubro=document.getElementById('prod-rubro').value;
+  filteredProductos=productos.filter(p=>(!q||p.descripcion.toLowerCase().includes(q)||p.codigo.includes(q))&&(!rubro||p.rubro===rubro));
+  pag.productos=1; renderProductos();
+}
+function renderProductos() {
+  const start=(pag.productos-1)*PS, page=filteredProductos.slice(start,start+PS);
+  const rc={ALIMENTOS:'green',ALMACEN:'blue',BEBIDAS:'blue',LIMPIEZA:'yellow'};
+  document.getElementById('prod-tbody').innerHTML=page.map(p=>`<tr>
+    <td style="font-size:11px;color:#9ca3af">${p.codigo}</td>
+    <td style="font-weight:500">${p.descripcion}</td>
+    <td style="text-align:center">${p.uxb}</td>
+    <td><span class="badge badge-${rc[p.rubro]||'gray'}">${p.rubro}</span></td>
+    <td>${fmt(p.costo_super)}</td>
+    <td style="text-align:center">${(p.pct*100).toFixed(0)}%</td>
+    <td style="font-weight:600;color:#059669">${fmt(p.costo_distri)}</td>
+  </tr>`).join('')||'<tr><td colspan="7" class="empty-state">Sin resultados</td></tr>';
+  renderPag('prod-pag',filteredProductos.length,'productos');
+}
+
+// GASTOS
+function renderGastos() {
+  const total=gastos.reduce((s,g)=>s+g.monto,0);
+  const maxG=Math.max(...gastos.map(g=>g.monto));
+  document.getElementById('gastos-cards').innerHTML=`
+    <div class="card red"><div class="card-label">Total Gastos Mayo</div><div class="card-value">${fmtS(total)}</div><div class="card-sub">${gastos.length} registros</div></div>
+    <div class="card"><div class="card-label">Mayor gasto</div><div class="card-value">${fmtS(maxG)}</div><div class="card-sub">${gastos.find(g=>g.monto===maxG)?.descripcion?.trim()}</div></div>
+    <div class="card"><div class="card-label">Promedio</div><div class="card-value">${fmtS(total/gastos.length)}</div></div>
+  `;
+  document.getElementById('gas-tbody').innerHTML=[...gastos].sort((a,b)=>b.monto-a.monto).map(g=>`<tr>
+    <td>${g.fecha}</td><td>${g.descripcion}</td><td style="font-weight:600">${fmt(g.monto)}</td>
+  </tr>`).join('');
+}
+
+// REPORTES
+function renderReportes() {
+  const mayo=pedidos.filter(p=>p.mes==='Mayo'), junio=pedidos.filter(p=>p.mes==='Junio');
+  const tM=mayo.reduce((s,p)=>s+p.monto,0), tJ=junio.reduce((s,p)=>s+p.monto,0);
+  const tG=gastos.reduce((s,g)=>s+g.monto,0);
+  const cobrado=mayo.filter(p=>p.pagado==='Si').reduce((s,p)=>s+p.monto,0);
+  document.getElementById('rep-cards').innerHTML=`
+    <div class="card blue"><div class="card-label">Venta Total</div><div class="card-value">${fmtS(tM+tJ)}</div></div>
+    <div class="card green"><div class="card-label">Cobrado Mayo</div><div class="card-value">${fmtS(cobrado)}</div></div>
+    <div class="card orange"><div class="card-label">Pendiente cobro</div><div class="card-value">${fmtS(tM-cobrado)}</div></div>
+    <div class="card red"><div class="card-label">Gastos Mayo</div><div class="card-value">${fmtS(tG)}</div></div>
+  `;
+  const vendMap={};
+  mayo.forEach(p=>{vendMap[p.vendedor]=(vendMap[p.vendedor]||0)+p.monto;});
+  document.getElementById('rep-comisiones').innerHTML=Object.entries(vendMap).sort((a,b)=>b[1]-a[1]).map(([v,t])=>`<tr>
+    <td style="font-weight:600">${v}</td><td>${fmt(t)}</td><td style="font-weight:600;color:#059669">${fmt(t*0.02)}</td>
+  </tr>`).join('');
+  const diaMap={};
+  mayo.forEach(p=>{diaMap[p.fecha]=(diaMap[p.fecha]||0)+p.monto;});
+  const dias=Object.entries(diaMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxD=dias[0]?.[1]||1;
+  document.getElementById('chart-dias').innerHTML=dias.map(([d,t])=>`
+    <div class="bar-row"><div class="bar-label">${d}</div>
+    <div class="bar-track"><div class="bar-fill orange" style="width:${(t/maxD*100).toFixed(1)}%"></div></div>
+    <div class="bar-value">${fmtS(t)}</div></div>`).join('');
+  const pends=pedidos.filter(p=>p.pagado!=='Si');
+  document.getElementById('rep-pendientes').innerHTML=pends.sort((a,b)=>b.monto-a.monto).map(p=>`<tr>
+    <td style="font-weight:500">${p.cliente}</td><td>${p.fecha}</td>
+    <td style="font-weight:600;color:#dc2626">${fmt(p.monto)}</td><td>${p.vendedor}</td>
+  </tr>`).join('')||'<tr><td colspan="4" class="empty-state">Sin pendientes</td></tr>';
+}
+
+// PAGINATION
+function renderPag(id, total, key) {
+  const tot=Math.ceil(total/PS), cur=pag[key];
+  let html='';
+  if(tot>1) {
+    if(cur>1) html+=`<button class="page-btn" onclick="goPage('${key}',${cur-1})">‹</button>`;
+    for(let i=Math.max(1,cur-2);i<=Math.min(tot,cur+2);i++)
+      html+=`<button class="page-btn ${i===cur?'active':''}" onclick="goPage('${key}',${i})">${i}</button>`;
+    if(cur<tot) html+=`<button class="page-btn" onclick="goPage('${key}',${cur+1})">›</button>`;
+  }
+  html+=`<span class="page-info">${total} registros | Pág ${cur} de ${Math.max(1,tot)}</span>`;
+  document.getElementById(id).innerHTML=html;
+}
+function goPage(key,n) {
+  pag[key]=n;
+  if(key==='pedidos') renderPedidos();
+  if(key==='clientes') renderClientes();
+  if(key==='productos') renderProductos();
+  if(key==='rp') renderRentProd();
+}
+
+function savePedido() {
+  pedidos.push({id:pedidos.length+1,fecha:document.getElementById('np-fecha').value,cliente:document.getElementById('np-cliente').value,monto:parseFloat(document.getElementById('np-monto').value)||0,pagado:document.getElementById('np-pagado').value,efectivo:parseFloat(document.getElementById('np-efectivo').value)||0,transferencia:parseFloat(document.getElementById('np-transferencia').value)||0,entregado:document.getElementById('np-entregado').value,vendedor:document.getElementById('np-vendedor').value,obs:document.getElementById('np-obs').value,mes:'Junio'});
+  filteredPedidos=[...pedidos]; closeModal('modal-pedido'); renderPedidos(); renderDashboard();
+}
+function resetClienteForm() {
+  document.getElementById('nc-title').textContent='Nuevo Cliente';
+  document.getElementById('nc-id').value='';
+  ['nc-nombre','nc-dni','nc-telefono','nc-local','nc-localidad','nc-direccion','nc-horarios'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('nc-vendedor').value='Mariano';
+}
+function saveCliente() {
+  const editId=document.getElementById('nc-id').value;
+  const data={
+    nombre:document.getElementById('nc-nombre').value.trim(),
+    vendedor:document.getElementById('nc-vendedor').value,
+    dni_cuit:document.getElementById('nc-dni').value.trim(),
+    telefono:document.getElementById('nc-telefono').value.trim(),
+    local:document.getElementById('nc-local').value.trim(),
+    localidad:document.getElementById('nc-localidad').value.trim(),
+    direccion:document.getElementById('nc-direccion').value.trim(),
+    horarios:document.getElementById('nc-horarios').value.trim(),
+  };
+  if(!data.nombre){alert('El nombre es obligatorio');return;}
+  const client=getSB();
+  if(editId) {
+    // Edición
+    const idx=clientes.findIndex(c=>c.id==editId);
+    if(idx>=0) Object.assign(clientes[idx],data);
+    client.from('clientes').update(data).eq('id',editId).then(({error})=>{
+      if(error) console.error('Error update cliente:',error);
+    });
+  } else {
+    // Nuevo
+    const newC={...data,id:Date.now(),total_mayo:0,pedidos:0};
+    clientes.unshift(newC);
+    client.from('clientes').insert([data]).then(({error})=>{
+      if(error) console.error('Error insert cliente:',error);
+    });
+  }
+  // reset form
+  document.getElementById('nc-title').textContent='Nuevo Cliente';
+  document.getElementById('nc-id').value='';
+  filteredClientes=[...clientes]; closeModal('modal-cliente'); renderClientes();
+}
+function saveGasto() {
+  gastos.push({id:gastos.length+1,fecha:document.getElementById('ng-fecha').value,desc:document.getElementById('ng-desc').value,monto:parseFloat(document.getElementById('ng-monto').value)||0});
+  closeModal('modal-gasto'); renderGastos();
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+
+// =============================================
+//   LOGÍSTICA GPS
+// =============================================
+// Supabase centralizado en SB_URL / getSB()
+
+let logMap = null;
+let logMarkers = [];
+let logSupabase = null;
+let clientesGPS = [];
+let logInitialized = false;
+
+// ====== CAMIONETA EN VIVO ======
+let _camMarker = null;
+let _camInterval = null;
+
+async function loadCamioneta() {
+  try {
+    const { data } = await getSB().from('camioneta').select('*').eq('id', 1).maybeSingle();
+    if (!data) return;
+    const bar = document.getElementById('camioneta-bar');
+    bar.style.display = 'flex';
+    const ahora = new Date();
+    const updated = data.updated_at ? new Date(data.updated_at) : null;
+    const minutos = updated ? Math.round((ahora - updated) / 60000) : null;
+    const reciente = minutos !== null && minutos < 3;
+    const badge = document.getElementById('cam-badge');
+    const status = document.getElementById('cam-status');
+    const camTime = document.getElementById('cam-time');
+    const emoji = document.getElementById('cam-emoji');
+    if (data.activo && reciente) {
+      badge.style.background = '#d1fae5'; badge.style.color = '#059669'; badge.textContent = '🟢 En ruta';
+      status.textContent = '🚚 ' + (data.repartidor || 'Camioneta') + ' — en movimiento';
+      camTime.textContent = 'Última señal hace ' + minutos + ' min';
+      emoji.textContent = '📡';
+    } else if (data.lat) {
+      badge.style.background = '#fef3c7'; badge.style.color = '#d97706'; badge.textContent = minutos !== null ? 'Hace ' + minutos + ' min' : 'Sin señal';
+      status.textContent = '🚚 ' + (data.repartidor || 'Camioneta');
+      camTime.textContent = updated ? 'Última posición: ' + updated.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '';
+      emoji.textContent = '🚚';
+    } else {
+      badge.style.background = '#f3f4f6'; badge.style.color = '#6b7280'; badge.textContent = 'Inactivo';
+      status.textContent = 'Camioneta sin posición';
+      camTime.textContent = 'Activá el seguimiento desde el celular del repartidor';
+      emoji.textContent = '🚚';
+      return;
+    }
+    if (!data.lat || !logMap) return;
+    // Update or create truck marker
+    if (_camMarker) {
+      _camMarker.setLatLng([data.lat, data.lng]);
+    } else {
+      const truckIcon = L.divIcon({
+        html: `<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));line-height:1">🚚</div>`,
+        className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      _camMarker = L.marker([data.lat, data.lng], { icon: truckIcon, zIndexOffset: 1000 })
+        .addTo(logMap)
+        .bindPopup(`<b>🚚 ${data.repartidor || 'Camioneta'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`);
+    }
+    _camMarker.getPopup().setContent(`<b>🚚 ${data.repartidor || 'Camioneta'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`);
+  } catch(e) {}
+}
+
+function startCamionetaTracking() {
+  loadCamioneta();
+  if (_camInterval) clearInterval(_camInterval);
+  _camInterval = setInterval(loadCamioneta, 30000);
+}
+
+
+let _cliGPSData = [];
+function renderCliGPSList(data, filter) {
+  _cliGPSData = data;
+  const list = document.getElementById('cli-gps-list');
+  const filtered = filter ? data.filter(c => c.nombre.toLowerCase().includes(filter.toLowerCase())) : data;
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:#9ca3af;font-size:13px">Sin resultados</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(c => `
+    <div class="cli-gps-item" onclick="focusCliente(${c.lat},${c.lng},'${c.nombre.replace(/'/g,"\'")}')">
+      <div class="cli-gps-dot"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.nombre}</div>
+        ${c.direccion ? `<div style="font-size:11px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.direccion}</div>` : ''}
+      </div>
+      <span style="font-size:10px;color:#9ca3af;flex-shrink:0">${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}</span>
+    </div>`).join('');
+}
+
+function filterMapList(q) {
+  renderCliGPSList(_cliGPSData, q);
+}
+
+function focusCliente(lat, lng, nombre) {
+  if (!logMap) return;
+  logMap.setView([lat, lng], 16);
+  // Open the popup for this marker
+  logMarkers.forEach(m => {
+    const p = m.getLatLng();
+    if (Math.abs(p.lat - lat) < 0.0001 && Math.abs(p.lng - lng) < 0.0001) {
+      m.openPopup();
+    }
+  });
+}
+
+function initLogSupabase() {
+  if (!logSupabase) {
+    try { logSupabase = getSB(); } catch(e) {}
+  }
+  return logSupabase;
+}
+
+function initLogMap() {
+  if (logMap) { setTimeout(()=>logMap.invalidateSize(),200); return; }
+  logMap = L.map('map').setView([-34.6, -58.4], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom: 19
+  }).addTo(logMap);
+}
+
+async function initLogistica() {
+  // Set today as default date
+  if (!document.getElementById('log-fecha').value) {
+    document.getElementById('log-fecha').value = new Date().toISOString().split('T')[0];
+  }
+  loadDepositoCoords();
+  initLogMap();
+  await loadLogistica();
+  startCamionetaTracking();
+}
+
+async function loadLogistica() {
+  initLogMap();
+  const sb = initLogSupabase();
+  let cliData = [];
+  if (sb) {
+    try {
+      const { data } = await sb.from('clientes').select('nombre,lat,lng').not('lat','is',null);
+      if (data) cliData = data;
+      document.getElementById('log-warning').style.display = 'none';
+    } catch(e) {
+      document.getElementById('log-warning').style.display = 'block';
+    }
+  } else {
+    document.getElementById('log-warning').style.display = 'block';
+  }
+  clientesGPS = cliData;
+
+  // Clear old markers
+  logMarkers.forEach(m => m.remove());
+  logMarkers = [];
+  if (window._routeLine) { window._routeLine.remove(); window._routeLine = null; }
+
+  // Add a marker per client
+  const iconDefault = L.divIcon({
+    html: `<div style="background:#6366f1;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>`,
+    className: '', iconSize: [12,12], iconAnchor: [6,6]
+  });
+  cliData.forEach(c => {
+    const m = L.marker([c.lat, c.lng], {icon: iconDefault})
+      .addTo(logMap)
+      .bindPopup(`<b>${c.nombre}</b>${c.direccion ? '<br>'+c.direccion : ''}`)
+      .bindTooltip(c.nombre, {permanent: false, direction: 'top', offset: [0,-6], className: ''});
+    logMarkers.push(m);
+  });
+  if (cliData.length > 0) {
+    logMap.fitBounds(L.latLngBounds(cliData.map(c=>[c.lat,c.lng])), {padding:[40,40]});
+  }
+  // Update counter and client list
+  document.getElementById('map-cli-count').textContent = cliData.length + ' clientes';
+  renderCliGPSList(cliData);
+
+  renderLogStats(cliData);
+  await buildRoute();
+  renderSinGPS(cliData);
+}
+
+function renderLogStats(cliData) {
+  const total = clientes.length;
+  const conGPS = cliData.length;
+  const pct = total > 0 ? Math.round(conGPS/total*100) : 0;
+  document.getElementById('logistics-stats').innerHTML = `
+    <div class="card blue"><div class="card-label">Clientes con GPS</div><div class="card-value">${conGPS}</div><div class="card-sub">de ${total} en el padrón</div></div>
+    <div class="card orange"><div class="card-label">Sin ubicación</div><div class="card-value">${total-conGPS}</div><div class="card-sub">faltan cargar con el vendedor</div></div>
+    <div class="card green"><div class="card-label">Cobertura GPS</div><div class="card-value">${pct}%</div><div class="card-sub">del padrón de clientes</div></div>`;
+}
+
+function saveDepositoCoords() {
+  const lat = document.getElementById('dep-lat').value;
+  const lng = document.getElementById('dep-lng').value;
+  if (lat && lng) {
+    localStorage.setItem('deposito_lat', lat);
+    localStorage.setItem('deposito_lng', lng);
+    document.getElementById('dep-badge').style.background = '#d1fae5';
+    document.getElementById('dep-badge').style.color = '#059669';
+    document.getElementById('dep-badge').textContent = '✅ Guardado';
+  }
+}
+
+function captureDepositoGPS() {
+  const btn = document.getElementById('btn-dep-gps');
+  const badge = document.getElementById('dep-badge');
+  btn.disabled = true; btn.textContent = '⏳ Localizando...';
+  badge.textContent = 'Buscando GPS...'; badge.style.background = '#e0e7ff'; badge.style.color = '#6366f1';
+  if (!navigator.geolocation) { btn.disabled=false; btn.textContent='📍 Capturar GPS'; return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const lat = pos.coords.latitude.toFixed(6);
+    const lng = pos.coords.longitude.toFixed(6);
+    document.getElementById('dep-lat').value = lat;
+    document.getElementById('dep-lng').value = lng;
+    saveDepositoCoords();
+    btn.disabled = false; btn.textContent = '📍 Capturar GPS';
+    buildRoute();
+  }, () => {
+    btn.disabled = false; btn.textContent = '📍 Capturar GPS';
+    badge.textContent = 'Error GPS'; badge.style.background = '#fee2e2'; badge.style.color = '#dc2626';
+  }, { enableHighAccuracy: true, timeout: 15000 });
+}
+
+function loadDepositoCoords() {
+  const lat = localStorage.getItem('deposito_lat');
+  const lng = localStorage.getItem('deposito_lng');
+  if (lat && lng) {
+    document.getElementById('dep-lat').value = lat;
+    document.getElementById('dep-lng').value = lng;
+    document.getElementById('dep-badge').style.background = '#d1fae5';
+    document.getElementById('dep-badge').style.color = '#059669';
+    document.getElementById('dep-badge').textContent = '✅ Guardado';
+  }
+}
+
+async function buildRoute() {
+  const fecha = document.getElementById('log-fecha').value;
+  const vendedor = document.getElementById('log-vendedor').value;
+  const depLat = parseFloat(document.getElementById('dep-lat').value) || null;
+  const depLng = parseFloat(document.getElementById('dep-lng').value) || null;
+  const routeDiv = document.getElementById('route-list');
+
+  // Get pedidos for the selected day
+  const sb = initLogSupabase();
+  let pedidosDia = [];
+  if (sb && fecha) {
+    try {
+      let q = sb.from('pedidos').select('cliente,monto').eq('fecha', fecha);
+      if (vendedor) q = q.eq('vendedor', vendedor);
+      const { data } = await q;
+      if (data) pedidosDia = data;
+    } catch(e) {
+      pedidosDia = pedidos.filter(p => p.fecha === fecha && (!vendedor || p.vendedor === vendedor));
+    }
+  } else {
+    pedidosDia = pedidos.filter(p => p.fecha === fecha && (!vendedor || p.vendedor === vendedor));
+  }
+
+  // Match with GPS data
+  const stops = pedidosDia
+    .map(p => { const g = clientesGPS.find(c=>c.nombre===p.cliente); return g ? {...g, monto:p.monto} : null; })
+    .filter(Boolean);
+
+  // Clear route line, markers, depot marker
+  if (window._routeLine) { window._routeLine.remove(); window._routeLine=null; }
+  if (window._routeMarkers) window._routeMarkers.forEach(m=>m.remove());
+  window._routeMarkers = [];
+  if (window._depotMarker) { window._depotMarker.remove(); window._depotMarker=null; }
+
+  // Depot marker
+  if (depLat && depLng) {
+    const depIcon = L.divIcon({
+      html: `<div style="background:#d97706;color:#fff;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35)">🏭</div>`,
+      className:'', iconSize:[34,34], iconAnchor:[17,17]
+    });
+    window._depotMarker = L.marker([depLat,depLng],{icon:depIcon})
+      .addTo(logMap).bindPopup('<b>🏭 Depósito Amenabar</b><br>Punto de salida del reparto');
+  }
+
+  if (!stops.length) {
+    routeDiv.innerHTML = `<div class="no-gps-msg">
+      <div style="font-size:32px;margin-bottom:8px">🗺️</div>
+      <div>${fecha ? 'No hay pedidos con GPS para esta fecha.<br>Los vendedores deben capturar la ubicación en su app.' : 'Seleccioná una fecha para calcular la ruta'}</div>
+    </div>`;
+    return;
+  }
+
+  // Optimize starting nearest to depot (if available), else standard TSP
+  let optimized;
+  if (depLat && depLng) {
+    // Start nearest-neighbor from the stop closest to the depot
+    const unvisited = [...stops];
+    let minD = Infinity, startIdx = 0;
+    unvisited.forEach((s,i) => { const d=haversine(depLat,depLng,s.lat,s.lng); if(d<minD){minD=d;startIdx=i;} });
+    const first = unvisited.splice(startIdx, 1)[0];
+    const rest = [first, ...unvisited];
+    optimized = nearestNeighbor(rest);
+  } else {
+    optimized = nearestNeighbor(stops);
+  }
+
+  // Polyline: depot → stops
+  const latlngs = depLat && depLng
+    ? [[depLat,depLng], ...optimized.map(s=>[s.lat,s.lng])]
+    : optimized.map(s=>[s.lat,s.lng]);
+
+  window._routeLine = L.polyline(latlngs, {color:'#6366f1',weight:3,opacity:0.8,dashArray:'8,5'}).addTo(logMap);
+  logMap.fitBounds(window._routeLine.getBounds(), {padding:[40,40]});
+
+  optimized.forEach((s,i) => {
+    const icon = L.divIcon({
+      html: `<div style="background:#6366f1;color:#fff;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${i+1}</div>`,
+      className:'', iconSize:[26,26], iconAnchor:[13,13]
+    });
+    const m = L.marker([s.lat,s.lng],{icon}).addTo(logMap)
+      .bindPopup(`<b>${i+1}. ${s.nombre}</b><br>${fmtMoney(s.monto)}`);
+    window._routeMarkers.push(m);
+  });
+
+  // Total km including depot leg
+  let totalKm = 0;
+  if (depLat && depLng && optimized.length) totalKm += haversine(depLat,depLng,optimized[0].lat,optimized[0].lng);
+  for (let i=1; i<optimized.length; i++) totalKm += haversine(optimized[i-1].lat,optimized[i-1].lng,optimized[i].lat,optimized[i].lng);
+
+  const depRow = (depLat && depLng) ? `
+    <div class="route-step" style="background:#fffbeb;border-left:3px solid #d97706">
+      <div class="route-num" style="background:#d97706;border-radius:8px;font-size:16px">&#127981;</div>
+      <div class="route-info">
+        <div class="route-name" style="color:#92400e">Depósito — Salida</div>
+        <div class="route-dist">${optimized.length>0 ? haversine(depLat,depLng,optimized[0].lat,optimized[0].lng).toFixed(1)+' km al primer cliente' : 'Inicio del reparto'}</div>
+      </div>
+    </div>` : '';
+
+  routeDiv.innerHTML = `
+    <div style="padding:10px 14px;background:#f0f4ff;border-radius:8px;margin-bottom:10px;font-size:13px;font-weight:600">
+      ${optimized.length} paradas · ${totalKm.toFixed(1)} km totales${depLat ? ' desde depósito' : ''}
+    </div>
+    ${depRow}
+    ${optimized.map((s,i)=>`
+      <div class="route-step">
+        <div class="route-num">${i+1}</div>
+        <div class="route-info">
+          <div class="route-name">${s.nombre}</div>
+          <div class="route-dist">${fmtMoney(s.monto)} · ${
+            i===0 && depLat && depLng ? haversine(depLat,depLng,s.lat,s.lng).toFixed(1)+' km desde depósito'
+            : i>0 ? haversine(optimized[i-1].lat,optimized[i-1].lng,s.lat,s.lng).toFixed(1)+' km'
+            : 'Primera parada'
+          }</div>
+        </div>
+      </div>`).join('')}`;
+}
+
+function renderSinGPS(cliData) {
+  const conGPS = new Set(cliData.map(c=>c.nombre.toLowerCase()));
+  const activosUnicos = [...new Set(pedidos.map(p=>p.cliente))];
+  const sinGPS = activosUnicos.filter(n=>!conGPS.has(n.toLowerCase()));
+  const tbody = document.getElementById('sin-gps-list');
+  if (!sinGPS.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#6b7280;padding:20px">✅ Todos los clientes activos tienen ubicación guardada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sinGPS.map(nombre=>{
+    const count = pedidos.filter(p=>p.cliente===nombre).length;
+    return `<tr><td>${nombre}</td><td>${count}</td><td><span class="badge badge-yellow">Sin GPS</span></td></tr>`;
+  }).join('');
+}
+
+// Nearest-neighbor TSP heuristic
+function nearestNeighbor(stops) {
+  if (!stops.length) return [];
+  const unvisited=[...stops], route=[unvisited.splice(0,1)[0]];
+  while(unvisited.length){
+    const last=route[route.length-1]; let minD=Infinity,minI=0;
+    unvisited.forEach((s,i)=>{const d=haversine(last.lat,last.lng,s.lat,s.lng); if(d<minD){minD=d;minI=i;}});
+    route.push(unvisited.splice(minI,1)[0]);
+  }
+  return route;
+}
+
+// Haversine distance in km
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function fmtMoney(n){return '$'+Number(n||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});}
+
+// ====== GPS CLIENTES (admin) ======
+let _gpsCliId = null;
+function openGPSModal(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+  _gpsCliId = id;
+  document.getElementById('gps-cli-nombre').textContent = c.nombre;
+  document.getElementById('gps-cli-lat').value = c.lat || '';
+  document.getElementById('gps-cli-lng').value = c.lng || '';
+  const cur = document.getElementById('gps-cli-current');
+  const btnBorrar = document.getElementById('btn-borrar-gps');
+  if (c.lat) {
+    cur.style.display = 'block';
+    document.getElementById('gps-cli-coords').textContent = c.lat.toFixed(5) + ', ' + c.lng.toFixed(5);
+    btnBorrar.style.display = 'block';
+  } else {
+    cur.style.display = 'none';
+    btnBorrar.style.display = 'none';
+  }
+  document.getElementById('modal-gps-cliente').classList.add('open');
+}
+
+function captureGPSCliente() {
+  const btn = document.getElementById('btn-gps-cli-capture');
+  btn.disabled = true; btn.textContent = '⏳ Localizando...';
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.getElementById('gps-cli-lat').value = pos.coords.latitude.toFixed(6);
+    document.getElementById('gps-cli-lng').value = pos.coords.longitude.toFixed(6);
+    btn.disabled = false; btn.textContent = '✅ Ubicación capturada';
+  }, () => {
+    btn.disabled = false; btn.textContent = '❌ Error — intentá de nuevo';
+    setTimeout(() => { btn.textContent = '📍 Capturar GPS desde este dispositivo'; }, 2000);
+  }, { enableHighAccuracy: true, timeout: 15000 });
+}
+
+function verClienteEnMapa(lat, lng, nombre) {
+  // Go to logística and focus on this client
+  showPage('logistica', document.querySelector('.nav-item:nth-child(8)'));
+  // Wait for map to init then zoom
+  setTimeout(() => {
+    if (logMap) {
+      logMap.setView([lat, lng], 17);
+      logMarkers.forEach(m => {
+        const p = m.getLatLng();
+        if (Math.abs(p.lat - lat) < 0.0001 && Math.abs(p.lng - lng) < 0.0001) m.openPopup();
+      });
+    }
+  }, 600);
+}
+
+function verTodosEnMapa() {
+  showPage('logistica', document.querySelector('.nav-item:nth-child(8)'));
+  setTimeout(() => {
+    if (logMap && logMarkers.length > 0) {
+      const bounds = L.latLngBounds(logMarkers.map(m => m.getLatLng()));
+      logMap.fitBounds(bounds, { padding: [40, 40] });
+    }
+  }, 600);
+}
+
+
+async function borrarGPSCliente() {
+  const c = clientes.find(x => x.id === _gpsCliId);
+  if (!c || !confirm('¿Borrar la ubicación GPS de ' + c.nombre + '?')) return;
+  try {
+    const { error } = await getSB().from('clientes')
+      .update({ lat: null, lng: null })
+      .eq('id', _gpsCliId);
+    if (error) throw error;
+    c.lat = null; c.lng = null;
+    closeModal('modal-gps-cliente');
+    renderClientes();
+    const toast = document.createElement('div');
+    toast.textContent = '🗑️ Ubicación borrada de ' + c.nombre;
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#374151;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2)';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  } catch(err) { alert('Error: ' + err.message); }
+}
+
+async function saveGPSCliente() {
+  const lat = parseFloat(document.getElementById('gps-cli-lat').value);
+  const lng = parseFloat(document.getElementById('gps-cli-lng').value);
+  if (!lat || !lng) { alert('Ingresá latitud y longitud válidas'); return; }
+  const c = clientes.find(x => x.id === _gpsCliId);
+  if (!c) return;
+  try {
+    const { error } = await getSB().from('clientes')
+      .update({ lat, lng })
+      .eq('id', _gpsCliId);
+    if (error) throw error;
+    // Update local data
+    c.lat = lat; c.lng = lng;
+    closeModal('modal-gps-cliente');
+    renderClientes();
+    // Show confirmation
+    const toast = document.createElement('div');
+    toast.textContent = '✅ GPS guardado para ' + c.nombre;
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.2)';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  } catch(err) {
+    alert('Error guardando GPS: ' + err.message);
+  }
+}
+
+
+// ====== BACKUP Y RESTAURACIÓN ======
+let _backupData = null;
+
+function openBackupModal() {
+  document.getElementById('export-status').textContent = '';
+  document.getElementById('restore-preview').style.display = 'none';
+  document.getElementById('btn-restore').style.display = 'none';
+  document.getElementById('restore-status').textContent = '';
+  document.getElementById('restore-file').value = '';
+  _backupData = null;
+  document.getElementById('modal-backup').classList.add('open');
+}
+
+async function exportarBackup() {
+  const btn = document.getElementById('btn-export');
+  const status = document.getElementById('export-status');
+  btn.disabled = true; btn.textContent = '⏳ Exportando...';
+  status.textContent = '';
+  try {
+    const sb = getSB();
+    const [rP, rC, rPr, rG] = await Promise.all([
+      sb.from('pedidos').select('*').order('fecha'),
+      sb.from('clientes').select('*').order('nombre'),
+      sb.from('productos').select('*').order('descripcion'),
+      sb.from('gastos').select('*').order('fecha'),
+    ]);
+    const backup = {
+      version: 1,
+      fecha: new Date().toISOString(),
+      tablas: {
+        pedidos:   rP.data  || [],
+        clientes:  rC.data  || [],
+        productos: rPr.data || [],
+        gastos:    rG.data  || [],
+      }
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const fecha = new Date().toISOString().split('T')[0];
+    a.href = url; a.download = 'amenabar_backup_' + fecha + '.json';
+    a.click(); URL.revokeObjectURL(url);
+    const total = (backup.tablas.pedidos.length + backup.tablas.clientes.length + backup.tablas.productos.length + backup.tablas.gastos.length);
+    status.style.color = '#16a34a';
+    status.textContent = '✅ Backup descargado — ' + total + ' registros guardados';
+  } catch(err) {
+    status.style.color = '#dc2626';
+    status.textContent = '❌ Error: ' + err.message;
+  }
+  btn.disabled = false; btn.textContent = '⬇️ Descargar backup ahora';
+}
+
+function leerArchivoBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      _backupData = JSON.parse(e.target.result);
+      if (!_backupData.tablas) throw new Error('Formato inválido');
+      const t = _backupData.tablas;
+      const preview = document.getElementById('restore-preview');
+      preview.style.display = 'block';
+      preview.innerHTML = `<strong>Archivo:</strong> ${file.name}<br>
+        <strong>Fecha del backup:</strong> ${_backupData.fecha ? new Date(_backupData.fecha).toLocaleString('es-AR') : '—'}<br>
+        <strong>Pedidos:</strong> ${(t.pedidos||[]).length} &nbsp;·&nbsp;
+        <strong>Clientes:</strong> ${(t.clientes||[]).length} &nbsp;·&nbsp;
+        <strong>Productos:</strong> ${(t.productos||[]).length} &nbsp;·&nbsp;
+        <strong>Gastos:</strong> ${(t.gastos||[]).length}`;
+      document.getElementById('btn-restore').style.display = 'block';
+      document.getElementById('restore-status').textContent = '';
+    } catch(err) {
+      document.getElementById('restore-preview').style.display = 'block';
+      document.getElementById('restore-preview').innerHTML = '<span style="color:#dc2626">❌ Archivo inválido: ' + err.message + '</span>';
+      document.getElementById('btn-restore').style.display = 'none';
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function restaurarBackup() {
+  if (!_backupData || !_backupData.tablas) return;
+  if (!confirm('⚠️ Esto sobreescribirá todos los datos actuales. ¿Confirmar restauración?')) return;
+  const btn = document.getElementById('btn-restore');
+  const status = document.getElementById('restore-status');
+  btn.disabled = true; btn.textContent = '⏳ Restaurando...';
+  status.textContent = '';
+  try {
+    const sb = getSB();
+    const t = _backupData.tablas;
+    // Upsert each table (preserves existing data for rows not in backup)
+    const ops = [];
+    if (t.pedidos?.length)   ops.push(sb.from('pedidos').upsert(t.pedidos,   { onConflict: 'id', ignoreDuplicates: false }));
+    if (t.clientes?.length)  ops.push(sb.from('clientes').upsert(t.clientes,  { onConflict: 'id', ignoreDuplicates: false }));
+    if (t.productos?.length) ops.push(sb.from('productos').upsert(t.productos, { onConflict: 'id', ignoreDuplicates: false }));
+    if (t.gastos?.length)    ops.push(sb.from('gastos').upsert(t.gastos,    { onConflict: 'id', ignoreDuplicates: false }));
+    const results = await Promise.all(ops);
+    const errors = results.filter(r => r.error);
+    if (errors.length) throw new Error(errors.map(r => r.error.message).join('; '));
+    status.style.color = '#16a34a';
+    status.textContent = '✅ Datos restaurados. Recargá la página para ver los cambios.';
+    btn.textContent = '✅ Restaurado';
+  } catch(err) {
+    status.style.color = '#dc2626';
+    status.textContent = '❌ Error: ' + err.message;
+    btn.disabled = false; btn.textContent = '⚠️ Confirmar restauración';
+  }
+}
+
+
+// Init
+async function initApp() {
+  const client = getSB();
+  try {
+    const [rPedidos, rClientes, rProductos, rGastos] = await Promise.all([
+      client.from('pedidos').select('*').order('fecha', {ascending: false}),
+      client.from('clientes').select('*').order('nombre'),
+      client.from('productos').select('*').order('descripcion'),
+      client.from('gastos').select('*').order('fecha', {ascending: false}),
+    ]);
+
+    if (rPedidos.error) throw rPedidos.error;
+    if (rClientes.error) throw rClientes.error;
+    if (rProductos.error) throw rProductos.error;
+    if (rGastos.error) throw rGastos.error;
+
+    pedidos   = rPedidos.data   || [];
+    clientes  = rClientes.data  || [];
+    productos = rProductos.data || [];
+    gastos    = rGastos.data    || [];
+
+    // Calcular campo "mes" desde fecha (la tabla no tiene columna mes)
+    const _MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    pedidos = pedidos.map(p => ({
+      ...p,
+      monto: Number(p.monto || 0),
+      mes: p.mes || (p.fecha ? _MESES[new Date(p.fecha).getUTCMonth()] : '')
+    }));
+    gastos = gastos.map(g => ({ ...g, monto: Number(g.monto || 0) }));
+
+    // rentProds
+    rentProds = productos.map(p => ({
+      cod: p.codigo, descripcion: p.descripcion, uxb: p.uxb || 1,
+      rubro: p.rubro, costo_super: p.costo_super, pct: p.pct,
+      costo_distri: p.costo_distri, ganancia: 0
+    }));
+
+    document.getElementById('loading-overlay').style.display = 'none';
+  } catch (err) {
+    console.error('Error cargando Supabase:', err);
+    document.getElementById('loading-error').style.display = 'block';
+    document.getElementById('loading-error').textContent =
+      '⚠️ Error conectando a Supabase: ' + (err.message || err) +
+      '. Revisá que las tablas estén creadas (ver SUPABASE_SETUP_COMPLETO.sql).';
+    document.getElementById('loading-overlay').querySelector('p').textContent =
+      'No se pudo conectar. Verificá tu conexión.';
+    return;
+  }
+
+  filteredPedidos   = [...pedidos];
+  filteredClientes  = [...clientes];
+  filteredProductos = [...productos];
+  filteredRP        = [...rentProds].sort((a,b) => b.ganancia - a.ganancia);
+  computeRENT();
+  renderDashboard();
+}
+
+initApp();
+</script>
+
+<!-- Modal GPS Cliente -->
+<div class="modal-overlay" id="modal-gps-cliente">
+  <div class="modal" style="width:380px">
+    <h3>📍 Ubicación GPS — <span id="gps-cli-nombre" style="color:#6366f1"></span></h3>
+    <div id="gps-cli-current" style="display:none;background:#d1fae5;color:#065f46;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px">
+      📍 Ubicación actual: <span id="gps-cli-coords"></span>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Latitud</label>
+        <input type="number" id="gps-cli-lat" step="0.00001" placeholder="-34.60000">
+      </div>
+      <div class="form-group">
+        <label>Longitud</label>
+        <input type="number" id="gps-cli-lng" step="0.00001" placeholder="-58.38000">
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="btn-gps-cli-capture" onclick="captureGPSCliente()" style="width:100%;margin-bottom:14px">
+      📍 Capturar GPS desde este dispositivo
+    </button>
+    <p style="font-size:11px;color:#9ca3af;margin-bottom:16px;text-align:center">
+      O pegá coordenadas de Google Maps (clic derecho → copiar coordenadas)
+    </p>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn btn-ghost" id="btn-borrar-gps" onclick="borrarGPSCliente()" style="display:none;color:#dc2626;border-color:#fca5a5">🗑️ Borrar ubicación</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal('modal-gps-cliente')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveGPSCliente()">💾 Guardar GPS</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Backup -->
+<div class="modal-overlay" id="modal-backup">
+  <div class="modal" style="width:500px">
+    <h3>💾 Backup y Restauración</h3>
+
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:6px">📥 Exportar backup</div>
+      <div style="font-size:13px;color:#166534;margin-bottom:12px">Descarga todos los datos (pedidos, clientes, productos, gastos) en un archivo JSON.</div>
+      <button class="btn btn-primary" onclick="exportarBackup()" id="btn-export" style="width:100%;background:#16a34a">
+        ⬇️ Descargar backup ahora
+      </button>
+      <div id="export-status" style="margin-top:8px;font-size:12px;color:#6b7280;text-align:center"></div>
+    </div>
+
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+      <div style="font-size:13px;font-weight:700;color:#c2410c;margin-bottom:6px">⚠️ Restaurar desde backup</div>
+      <div style="font-size:13px;color:#9a3412;margin-bottom:12px">Carga un archivo de backup guardado anteriormente. <strong>Esto sobreescribirá los datos actuales.</strong></div>
+      <input type="file" id="restore-file" accept=".json" style="display:none" onchange="leerArchivoBackup(event)">
+      <button class="btn btn-ghost" onclick="document.getElementById('restore-file').click()" style="width:100%;color:#c2410c;border-color:#fca5a5;margin-bottom:10px">
+        📂 Seleccionar archivo de backup (.json)
+      </button>
+      <div id="restore-preview" style="display:none;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:10px"></div>
+      <button class="btn btn-primary" id="btn-restore" onclick="restaurarBackup()" style="width:100%;display:none;background:#dc2626">
+        ⚠️ Confirmar restauración
+      </button>
+      <div id="restore-status" style="margin-top:8px;font-size:12px;color:#6b7280;text-align:center"></div>
+    </div>
+
+    <div style="background:#f0f4ff;border-radius:10px;padding:12px 16px;font-size:12px;color:#4338ca;margin-bottom:16px">
+      💡 <strong>Recomendación:</strong> descargá un backup antes de cada actualización importante o una vez por semana.
+    </div>
+
+    <div style="text-align:right">
+      <button class="btn btn-ghost" onclick="closeModal('modal-backup')">Cerrar</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

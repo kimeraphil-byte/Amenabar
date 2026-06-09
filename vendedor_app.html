@@ -54,13 +54,15 @@
   .logout-btn { background: rgba(255,255,255,0.2); border: none; color: #fff; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
   /* === TABS === */
-  .tabs { background: #fff; display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 90; }
-  .tab { flex: 1; padding: 12px 8px; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tabs { background: #fff; display: flex; border-bottom: 1px solid var(--border); position: sticky; top: 60px; z-index: 90; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; padding: 12px 14px; text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
   .tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 
   /* === CONTENT === */
   .content { flex: 1; padding: 16px; overflow-y: auto; }
   .tab-content { display: none; }
+  .tab-content.active { padding-bottom: 90px; }
   .tab-content.active { display: block; }
 
   /* === CARDS === */
@@ -194,6 +196,10 @@
     </div>
     <div class="header-right">
       <div class="sync-dot" id="sync-dot"></div>
+      <button id="btn-toggle-ruta" onclick="toggleSeguimiento()"
+        style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:7px 11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap">
+        <span id="truck-emoji">🚚</span><span id="ruta-status-title">GPS</span>
+      </button>
       <button class="logout-btn" onclick="doLogout()">Salir</button>
     </div>
   </div>
@@ -214,12 +220,18 @@
         <div class="form-group">
           <label class="form-label">Nombre del cliente</label>
           <input type="text" class="form-input" id="inp-cliente" placeholder="Buscar cliente..."
-                 oninput="searchCliente(this.value)" onchange="checkClienteUbicacion(this.value)"
+                 oninput="searchCliente(this.value)" onchange="checkClienteUbicacion(this.value);showClienteInfo(this.value)"
                  autocomplete="off" list="clientes-datalist">
           <datalist id="clientes-datalist"></datalist>
           <div class="gps-row">
             <button class="btn-gps" id="btn-gps" onclick="captureGPS()">📍 Capturar ubicación</button>
             <span class="gps-badge gps-none" id="gps-badge">Sin ubicación</span>
+          </div>
+          <!-- Info del cliente seleccionado -->
+          <div id="cliente-info-card" style="display:none;margin-top:10px;padding:10px 12px;background:var(--surface2,#f0f4ff);border-radius:10px;font-size:13px;line-height:1.7;border:1px solid var(--border,#e2e8f0)">
+            <strong id="ci-nombre" style="font-size:14px"></strong>
+            <div id="ci-local" style="color:#6b7280"></div>
+            <div id="ci-rows"></div>
           </div>
         </div>
       </div>
@@ -327,7 +339,9 @@
         <div class="form-group">
           <label class="form-label">Nombre del cliente</label>
           <input type="text" class="form-input" id="ubi-cliente" placeholder="Buscar cliente..."
-            oninput="searchUbiCliente(this.value)" onchange="checkUbiClienteExistente(this.value)" autocomplete="off">
+            oninput="searchUbiCliente(this.value)" onchange="checkUbiClienteExistente(this.value)"
+            autocomplete="off">
+          <datalist id="ubi-clientes-dl"></datalist>
           <div id="ubi-dropdown" class="prod-dropdown"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
@@ -335,12 +349,67 @@
         </div>
         <button class="btn-gps" id="ubi-btn-gps" onclick="captureUbiGPS()" style="margin-top:14px;width:100%">📍 Capturar ubicación</button>
       </div>
-      <div class="section-card">
+
+      <div class="section-card" id="ubi-lista-card">
         <div class="section-title">Clientes con GPS cargado</div>
         <div id="ubi-lista" style="font-size:13px;color:var(--muted);padding:8px 0">Cargando...</div>
       </div>
     </div>
 
+    <!-- Tab En Ruta -->
+
+
+  </div>
+</div>
+
+<!-- FAB: Nuevo Cliente -->
+<button id="fab-nuevo-cliente" onclick="openNuevoClienteModal()" title="Nuevo cliente"
+  style="display:none;position:fixed;bottom:24px;right:20px;z-index:200;width:56px;height:56px;border-radius:50%;background:var(--primary,#6366f1);color:#fff;font-size:26px;border:none;box-shadow:0 4px 16px rgba(0,0,0,0.25);cursor:pointer;line-height:1">➕</button>
+
+<!-- Modal: Nuevo Cliente -->
+<div id="modal-nuevo-cliente" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);overflow-y:auto">
+  <div style="background:var(--surface,#fff);margin:20px auto;max-width:480px;border-radius:16px;padding:24px 20px;position:relative">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <strong style="font-size:16px">➕ Nuevo cliente</strong>
+      <button onclick="closeNuevoClienteModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nombre *</label>
+      <input type="text" class="form-input" id="nc-nombre" placeholder="Nombre completo">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Local / Comercio</label>
+      <input type="text" class="form-input" id="nc-local" placeholder="Nombre del local">
+    </div>
+    <div class="form-group">
+      <label class="form-label">DNI / CUIT</label>
+      <input type="text" class="form-input" id="nc-dni" placeholder="20-12345678-9">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Teléfono / Celular</label>
+      <input type="tel" class="form-input" id="nc-telefono" placeholder="351 000-0000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Dirección</label>
+      <input type="text" class="form-input" id="nc-direccion" placeholder="Calle y número">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Localidad / Zona</label>
+      <input type="text" class="form-input" id="nc-localidad" placeholder="Barrio o ciudad">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Horarios</label>
+      <input type="text" class="form-input" id="nc-horarios" placeholder="Ej: Lun-Vie 9-18hs">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Vendedor asignado</label>
+      <select class="form-input" id="nc-vendedor" style="background:var(--surface);color:var(--text)">
+        <option>Mariano</option>
+        <option>Pablo</option>
+        <option>Jordi</option>
+      </select>
+    </div>
+    <button class="btn-submit" onclick="saveNuevoCliente()" style="margin-top:8px">Guardar cliente</button>
   </div>
 </div>
 
@@ -355,6 +424,7 @@ const SUPABASE_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
 // =============================================
 
+let CLIENTES_DATA = []; // objetos completos cargados desde Supabase
 const CLIENTES = ["Adriana Piccolo", "Aldana Gutierrez", "Aldo FT", "Ana Pedretti", "Angel", "Angel Simon", "Angel Simón", "Angie Pedretti", "Anita Bregant", "Belén Calcaterra", "Bruno Martinez", "Candela Bracamonte", "Carniceria Los Abuelos", "Carnicería Cayetano", "Carnicería Los Abuelos", "Casa Pilu", "Cloro Mas", "Club America", "Club América", "Complejo La Gloria", "Complejo Santander", "David VF", "Despensa AyG", "Distincion", "Dulce Melocotón", "Elo Zaccone", "Ema Cimino", "Ema Gommaid", "Eva Diaz", "Eze Cimino", "Facundo Gadioles", "Franca Rosano", "Franco Santoro (Pizzana)", "Gabi Mareco", "Gaston VF", "Gisela Barrera", "Graciela", "Jonatan", "Joni Casañas", "Jordi Quintana", "Juan Cruz Ferrarello", "Juan Macharetti", "Julia´s Bar", "Karen", "Karina", "Kiosco 24/7", "Kiosko 24/7", "La Bartola", "Lalo Bufarini", "Lamar", "Leo Torres", "Leonor Fernandez", "Los Fletitas", "Los Gringos", "Marcelo Fernandez", "Mariano O'Shea", "Mariela Muller", "Mariela Müller", "Marisel", "Marta Simon", "Marta Simón", "Marta Soto", "Martin Docena", "Mica Storni", "Pablo Diaz", "Pablo Díaz", "Pablo Rebelino", "Padel San Andres", "Panaderia Susy", "Panadería Susy", "Pipi's", "Pollería Gadioles", "Pollería Independencia", "Rodrigo Cordido", "Rodrigo Córdido", "Romina Sequeira", "Ruben Ezzati", "Rubén Ezzati", "Sabrina Luna", "Seba Gilardoni", "Sebastian Lerda", "Silvia Abo Hamed", "Silvio PC", "Solange Vega", "Stella"];
 const PRODUCTOS = [{"desc":"9 DE ORO AGRIDULCES X 200 G","precio":855.75,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"9 DE ORO AZUCARADAS X 200 G","precio":855.75,"uxb":28,"rubro":"ALIMENTOS"},{"desc":"9 DE ORO CLASICAS X 200 G","precio":855.75,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"ACEITE LEGITIMO X 1.5 L","precio":4004.7,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"ACEITE LEGITIMO X 900 ML","precio":2502.15,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"ACEITE NATURA X 1.5 LT","precio":4780.65,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"ACEITE NATURA X 900 ML","precio":2695.35,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"ARROZ GALLO ORO BOLSA X 1 KG","precio":1583.4,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ GALLO ORO X 500 G","precio":884.1,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ LUCCHETTI LF X 1 KG","precio":1228.5,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ LUCCHETTI LF X 500 G","precio":615.3,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ MOCOVI LARGO FINO X 1 KG","precio":809.55,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ MOCOVI LARGO FINO X 500 G","precio":425.25,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARROZ VINCHA DE ORO LARGO FINO 1 KG","precio":703.5,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"ARVEJAS INALPA X 350 G","precio":462.0,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"ATUN DESM ACEI Y AGUA BAHIA 170 G","precio":1027.95,"uxb":48,"rubro":"ALIMENTOS"},{"desc":"ATUN DESM NATURAL BAHIA 170 G","precio":1027.95,"uxb":48,"rubro":"ALIMENTOS"},{"desc":"AZUCAR CHANGO X 1KG","precio":1200.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"AZUCAR DON HECTOR X 1KG","precio":934.5,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"BIZCOCH DON SATUR AZUCAR X 200 G","precio":728.7,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"BIZCOCH DON SATUR GRASA X 200 G","precio":728.7,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"BIZCOCH DON SATUR NEGRO X 200 G","precio":728.7,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"CAFE ARLISTAN SUAVE MAS AROMA X 170 GR","precio":5575.5,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"CAFE EN SAQ LA VIRGINIA 20 U X 5 G","precio":3110.1,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"CAFE LA VIRGINIA INST CLAS X 100 G","precio":3478.65,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"CAFE LA VIRGINIA INST SUAVE 100 G","precio":3478.65,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"CAFE LA VIRGINIA MOLIDO TORRADO X 250 G","precio":3685.5,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"CAFE LA VIRGINIA MOLIDO TORRADO X 500 G","precio":8310.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"CHAMPIGNONES BAHIA TROZOS X 400 G","precio":2138.85,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"CHAMPIGNONES ENT BAHIA X 400 G","precio":2418.15,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"CHOCLO AMAR GRANOS INALPA 300 GR","precio":937.65,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"DURAZNO VIGENTE x 820 G","precio":1354.5,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"EDULCORANTE SI DIET X 250ML","precio":1014.3,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"EDULCORANTE SI DIET X 600ML","precio":1876.35,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"FIDEOS LUCCHETTI CODITOS X500G","precio":998.55,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS LUCCHETTI PENNE RIGATE N 45 X500G","precio":887.25,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS LUCCHETTI SPAGHETTI N 7 X500G","precio":895.65,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS LUCCHETTI TALLARIN N 5 X500G","precio":887.25,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS MATARAZZO MOSTAC Nº 52 X 500 G","precio":1094.1,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS MATARAZZO PENNE RIG Nº 52 X 500 G","precio":1094.1,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS MATARAZZO SPAGHETTI N°3 X 500 G","precio":1094.1,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS MATARAZZO TALLARIN N°5","precio":1094.1,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS MATARAZZO TIRABUZON N°28 X 500 G","precio":1094.1,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS TERRABUSI SPAGHETTI N°3 X 500 G","precio":738.15,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS TERRABUSI TALLARINES Nº 7 X 500 G","precio":738.15,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"FIDEOS TERRABUSSI CODITO X 500 G","precio":738.15,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS TERRABUSSI FUSILLI X 500 G","precio":738.15,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS TERRABUSSI MOSTACHOL RAY X 500 G","precio":738.15,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA CODO X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA MOSTACHOL X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA RIGATONI X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA SPAGHETTI X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA TALLARIN X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"FIDEOS VERIZZIA TIRABUZON X 500 G","precio":483.0,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"GALLETITA PROVIDENCIA X 3 U","precio":827.4,"uxb":16,"rubro":"ALIMENTOS"},{"desc":"GARBANZOS INALPA X 300 G","precio":581.7,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"HARINA 000 ESTUPENDA X KG","precio":540.75,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"HARINA 0000 ESTUPENDA X KG","precio":676.2,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"HARINA DE MAIZ LA ABADIA X 500 G","precio":485.1,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"HARINA LEUDANTE ESTUPENDA X KG","precio":811.65,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"HOJALMAR PALMERITAS X 150GS","precio":1222.2,"uxb":18,"rubro":"ALIMENTOS"},{"desc":"HOJALMAR TRIANGULITOS X 150 G","precio":924.0,"uxb":18,"rubro":"ALIMENTOS"},{"desc":"HOJALMAR TRIANGULITOS X 250 G","precio":1443.75,"uxb":18,"rubro":"ALIMENTOS"},{"desc":"JARDINERA INALPA X 300 G","precio":611.1,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"KETCHUP HELLM X 250 G","precio":1111.95,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"KETCHUP HELLM X 500 G","precio":2751.0,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"LECHE BAGGIO DESC CAJA X 1LT","precio":1306.2,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"LECHE BAGGIO ENT CAJA X 1LT","precio":1306.2,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"LECHE CHOC TREGAR X 1 LT","precio":2108.4,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"LECHE TREGAR DESC CAJA X 1LT","precio":1461.6,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"LECHE TREGAR ENT CAJA X 1LT","precio":1461.6,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"LENTEJAS INALPA X 300 G","precio":858.9,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"LENTEJAS LA ABADIA X 400 G","precio":935.55,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"LENTEJONES LA ABADIA X 400 G","precio":1476.3,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"LOMITO ATUN ACEITE BAHIA 170 G","precio":2080.05,"uxb":48,"rubro":"ALIMENTOS"},{"desc":"LOMITO ATUN NAT BAHIA 170 G","precio":2080.05,"uxb":48,"rubro":"ALIMENTOS"},{"desc":"MAGDALENAS DON SATUR CHIPS X 140 G","precio":1347.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MAGDALENAS DON SATUR CHOC DDL X 140 G","precio":1347.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MAGDALENAS DON SATUR MARMOLADAS X 140 G","precio":1347.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MAGDALENAS DON SATUR R/DDL X 250 G","precio":1347.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MAGDALENAS DON SATUR VAINILLA X 140 G","precio":1347.15,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MAIZ PISINGALLO LA ABADIA X 400 G","precio":550.2,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MATE COCIDO PLAYADITO X 25 SOBRES","precio":791.7,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"MATE COCIDO PLAYADITO X 50 SOBRES","precio":1504.65,"uxb":5,"rubro":"ALIMENTOS"},{"desc":"MAYONESA CADA DIA LIVIANA X 1KG","precio":1741.95,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"MAYONESA CADA DIA LIVIANA X 250 G","precio":463.05,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MAYONESA CADA DIA LIVIANA X 500 G","precio":898.8,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MAYONESA HELLMANNS X 237 G","precio":666.75,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"MAYONESA HELLMANNS X 500 G","precio":1286.25,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"MAYONESA HELLMANNS X 950 G","precio":3180.45,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"MAYONESA NATURA X 1KG","precio":4568.55,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"MAYONESA NATURA X 250 CC","precio":1189.65,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MAYONESA NATURA X 500 GS","precio":2329.95,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MERMELADAS DULCOR CIRUELA X 500","precio":1017.45,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MERMELADAS DULCOR DAMASCO X 500","precio":1017.45,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MERMELADAS DULCOR DURAZNO X 500","precio":1017.45,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MERMELADAS DULCOR NARANJA X 500","precio":1017.45,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"MERMELADAS DULCOR ZAPALLO X 500","precio":1017.45,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"OREO X 118 GR","precio":1208.55,"uxb":36,"rubro":"ALIMENTOS"},{"desc":"PEPITOS X 119 G","precio":1128.75,"uxb":60,"rubro":"ALIMENTOS"},{"desc":"PICADILLO CARNE CHANGUITO X 90 G","precio":527.1,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"PICADILLO CARNE SWIFT X 90 G","precio":798.0,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"PITUSAS CHOCOLATE X 300 G","precio":1350.3,"uxb":16,"rubro":"ALIMENTOS"},{"desc":"PITUSAS FRUTILLA X 300 G","precio":1350.3,"uxb":16,"rubro":"ALIMENTOS"},{"desc":"PITUSAS VAINILLA X 300 G","precio":1350.3,"uxb":16,"rubro":"ALIMENTOS"},{"desc":"PURE DE TOMATE LA HUERTA X 1 KG","precio":1189.65,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"PURE DE TOMATE LA HUERTA X 530 G","precio":736.05,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"SAL CELUSAL GRUESA X 500G","precio":698.77,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"SAL CELUSAL PAQUETE X 500 G","precio":885.15,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"SAL CELUSAL PARRILLERA X 500G","precio":805.35,"uxb":30,"rubro":"ALIMENTOS"},{"desc":"SAL FINA CELUSAL CAJA X 500 G","precio":894.6,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"SAL RINSAL ENTREFINA X 1 KG","precio":750.75,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"SAL RINSAL FINA X 500 G","precio":483.0,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"SAL RINSAL GRUESA X 1 KG","precio":727.65,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"SALSA GOLF HELLMANNS X 250 G","precio":1739.85,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"SAVORA ORIGINAL DP X 250 G","precio":723.45,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"SAVORA ORIGINAL DP X 500 G","precio":1348.2,"uxb":15,"rubro":"ALIMENTOS"},{"desc":"TE LA VIRGINIA S/TACC X 25 U","precio":661.5,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"TOMATE TRITURADO LOS POLACOS BOT X 1 KG","precio":1011.15,"uxb":8,"rubro":"ALIMENTOS"},{"desc":"TOMATES PERITAS VIGENTE X 400 G","precio":525.0,"uxb":24,"rubro":"ALIMENTOS"},{"desc":"VARIEDAD TERRABUSI X 390G","precio":1754.55,"uxb":20,"rubro":"ALIMENTOS"},{"desc":"VINAGRE DE ALCOHOL MENOYO X 1 L","precio":968.1,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"VINAGRE HALCONERO X 930 ML","precio":717.15,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA AMANDA X 1 KG","precio":2697.27,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA AMANDA X 500 G","precio":1434.39,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA ANDRESITO X 1 KG","precio":2158.8,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA ANDRESITO X 500 G","precio":1144.5,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE HIERB SERRANAS X 1 KG","precio":2500.05,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE HIERBAS SERRANAS X 500 KG","precio":1307.25,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE LIMON X 500 KG","precio":1307.25,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE POMELO X 500 KG","precio":1307.25,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE SILUETA CORM X 500 KG","precio":1307.25,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA CBSE SILUETA NARANJA X 500 KG","precio":1307.25,"uxb":12,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED BARBACUA x 500 G","precio":3081.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED CAMPO & MONTE X 500 G","precio":3081.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED CAMPO SUR X 1KG","precio":4116.0,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED CAMPO SUR X 500 G","precio":3081.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED CAMPO X 500 G","precio":3081.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"YERBA LA MERCED DE MONTE X 500 G","precio":3081.75,"uxb":6,"rubro":"ALIMENTOS"},{"desc":"YERBA MAÑANITA X 1KG","precio":2948.4,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA MAÑANITA X 500 G","precio":1503.6,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA PLAYADITO DESPALADA X 500 G","precio":2338.35,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA PLAYADITO SUAVE X 1KG","precio":3066.0,"uxb":5,"rubro":"ALIMENTOS"},{"desc":"YERBA PLAYADITO SUAVE X 500 G","precio":1639.05,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA ROSAMONTE X 1KG","precio":2417.1,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA ROSAMONTE X 500 G","precio":1274.7,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA TARAGUI FLEX ROJA X 500 G","precio":1503.6,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA TARAGUI FLEX X 1KG","precio":2948.4,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA UNION SUAVE X 1KG","precio":2948.4,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"YERBA UNION SUAVE X 500 G","precio":1503.6,"uxb":10,"rubro":"ALIMENTOS"},{"desc":"AZUCAR LEDESMA X 1KG","precio":1066.8,"uxb":10,"rubro":"ALMACEN"},{"desc":"AZUCAR MASCABO LEDESMA X 800 GR","precio":1562.4,"uxb":6,"rubro":"ALMACEN"},{"desc":"FIDEOS PROVIDENCIA CODOS 500 G","precio":561.75,"uxb":15,"rubro":"ALMACEN"},{"desc":"FIDEOS PROVIDENCIA MOSTACHOL X 500 G","precio":561.75,"uxb":15,"rubro":"ALMACEN"},{"desc":"FIDEOS PROVIDENCIA TALLARIN X 500 G","precio":561.75,"uxb":20,"rubro":"ALMACEN"},{"desc":"FIDEOS PROVIDENCIA TIRABUZON X 500 G","precio":561.75,"uxb":15,"rubro":"ALMACEN"},{"desc":"AGUA BIDON RUMIPAL X 6 L","precio":1312.5,"uxb":2,"rubro":"BEBIDAS"},{"desc":"AGUA MINERAL SOCIAL X 1.5 L","precio":568.05,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AGUA MINERAL SOCIAL X 600 ML","precio":437.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AGUA RUMIPAL X 2 L","precio":409.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AGUA VALLE DEL SOL X 6.25 L","precio":1289.4,"uxb":2,"rubro":"BEBIDAS"},{"desc":"AGUA VILLA DEL SUR X 6.25 L","precio":2583.0,"uxb":2,"rubro":"BEBIDAS"},{"desc":"AMARGO OBRERO X 1 LT","precio":3255.0,"uxb":12,"rubro":"BEBIDAS"},{"desc":"AMARGO TRES TORRES POMELO ROSADO X 1.5L","precio":790.65,"uxb":12,"rubro":"BEBIDAS"},{"desc":"AMERICANO GANCIA X 1.25L","precio":6083.7,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AMERICANO GANCIA X 450 CC","precio":3021.9,"uxb":12,"rubro":"BEBIDAS"},{"desc":"AQUARIUS LIMONADA X 1.5 L","precio":1921.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AQUARIUS MANZ X 1.5 L","precio":1921.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AQUARIUS NARANJA X 1.5 L","precio":1921.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AQUARIUS PERA X 1.5 L","precio":1921.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"AQUARIUS POMELO X 1.5 L","precio":1921.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"BAGGIO DURAZNO X 1L","precio":1273.65,"uxb":8,"rubro":"BEBIDAS"},{"desc":"BAGGIO DURAZNO X 200ML","precio":376.95,"uxb":18,"rubro":"BEBIDAS"},{"desc":"BAGGIO FRESH COLA X 2250 CC","precio":1264.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"BAGGIO FRESH LIMON X 2250 CC","precio":1264.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"BAGGIO FRESH NAR X 2250 CC","precio":1264.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"BAGGIO FRESH POMELO X 2250 CC","precio":1264.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"BAGGIO MANZANA X 200ML","precio":376.95,"uxb":18,"rubro":"BEBIDAS"},{"desc":"BAGGIO MANZANA X1L","precio":1273.65,"uxb":8,"rubro":"BEBIDAS"},{"desc":"BAGGIO MULTIFRUTA X 1L","precio":1273.65,"uxb":8,"rubro":"BEBIDAS"},{"desc":"BAGGIO MULTIFRUTA X 200ML","precio":376.95,"uxb":18,"rubro":"BEBIDAS"},{"desc":"BAGGIO NARANJA X 1L","precio":1273.65,"uxb":8,"rubro":"BEBIDAS"},{"desc":"BAGGIO NARANJA X 200ML","precio":376.95,"uxb":18,"rubro":"BEBIDAS"},{"desc":"CAMPARI X 750 ML","precio":6924.75,"uxb":12,"rubro":"BEBIDAS"},{"desc":"CEPITA ANANA X 1.5 LT","precio":2107.35,"uxb":4,"rubro":"BEBIDAS"},{"desc":"CEPITA BOT ANANA X 1 LT","precio":1559.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CEPITA BOT DURAZNO X 1 LT","precio":1559.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CEPITA BOT MANZANA X 1 LT","precio":1559.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CEPITA BOT NARANJA X 1 LT","precio":1559.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CEPITA DURAZNO X 1.5 LT","precio":2107.35,"uxb":4,"rubro":"BEBIDAS"},{"desc":"CEPITA NARANJA X 1.5 LT","precio":2107.35,"uxb":4,"rubro":"BEBIDAS"},{"desc":"CERVEZA ANDES NEGRA LATA X 473 CC","precio":1796.55,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA ANDES ROJA LATA X 473 CC","precio":1796.55,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA ANDES RUBIA LATA X 473 CC","precio":1504.65,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA BRAHMA LATA X 473 CC","precio":1377.08,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA BRAHMA X 1 LT","precio":2495.85,"uxb":12,"rubro":"BEBIDAS"},{"desc":"CERVEZA CORONA X 330 CC","precio":1922.55,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA CORONA X 710 ML","precio":3098.55,"uxb":12,"rubro":"BEBIDAS"},{"desc":"CERVEZA MICHELOB LATA X 473 CC","precio":947.1,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA MICHELOB LATA X 473 CC","precio":946.05,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA QUILMES CRISTAL LATA X 473 CC","precio":1377.08,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA QUILMES CRISTAL X 1 LT","precio":2495.85,"uxb":12,"rubro":"BEBIDAS"},{"desc":"CERVEZA STELLA ARTOIS LATA X 473 CC","precio":2205.0,"uxb":24,"rubro":"BEBIDAS"},{"desc":"CERVEZA STELLA ARTOIS X 1LT","precio":3570.0,"uxb":12,"rubro":"BEBIDAS"},{"desc":"CINZANO ROSSO VERMOUTH X 1 LT","precio":5617.5,"uxb":12,"rubro":"BEBIDAS"},{"desc":"COCA COLA LATA X 354ML","precio":1020.6,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA LATA ZERO X 354ML","precio":1020.6,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA RET X 1.25LT","precio":2152.5,"uxb":8,"rubro":"BEBIDAS"},{"desc":"COCA COLA RET X 2LT","precio":2651.25,"uxb":8,"rubro":"BEBIDAS"},{"desc":"COCA COLA X 1.5LT","precio":2720.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA X 1LT","precio":2152.5,"uxb":9,"rubro":"BEBIDAS"},{"desc":"COCA COLA X 2.5LT","precio":4204.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA X 500ML","precio":1156.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"COCA COLA ZERO RET X 1.25LT","precio":2152.5,"uxb":8,"rubro":"BEBIDAS"},{"desc":"COCA COLA ZERO RET X 2LT","precio":2651.25,"uxb":8,"rubro":"BEBIDAS"},{"desc":"COCA COLA ZERO X 1.5LT","precio":2720.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA ZERO X 2.5LT","precio":4204.2,"uxb":6,"rubro":"BEBIDAS"},{"desc":"COCA COLA ZERO X 500ML","precio":1156.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"COCA COLA. ZERO X 1 LT","precio":2152.5,"uxb":9,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON COLA CLASSIC X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON COLA S/A SUAVE X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON COLA S/A X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON COLA X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON LIMA LIMON SUAVE X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON LIMA LIMON X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON NARANJA X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON NARANJA X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON POMELO S/A X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON POMELO S/A X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON POMELO X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON POMELO X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON TONICA S/A SUAVE X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON TONICA S/A X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON TONICA X 1.5 L","precio":1151.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"CUNNINGTON TONICA X 2.25 L","precio":1670.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"ESTANCIA MENDOZA CABERNET MALBEC X 750 CC","precio":2193.45,"uxb":6,"rubro":"BEBIDAS"},{"desc":"ESTANCIA MENDOZA CABERNET SAUVIG X 750 CC","precio":2168.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"ESTANCIA MENDOZA CHENIN CHARD DULCE X 750 CC","precio":2311.05,"uxb":6,"rubro":"BEBIDAS"},{"desc":"ESTANCIA MENDOZA MALBEC X 750 CC","precio":2289.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"FANTA LATA 354 ML","precio":1020.6,"uxb":6,"rubro":"BEBIDAS"},{"desc":"FANTA RET X 1.25L","precio":2152.5,"uxb":8,"rubro":"BEBIDAS"},{"desc":"FANTA RET X 2 LT","precio":2651.25,"uxb":8,"rubro":"BEBIDAS"},{"desc":"FANTA X 1.5 LT","precio":2720.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"FANTA X 500ML","precio":1156.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"FERNET BRANCA X 1LT","precio":18236.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"FERNET BRANCA X 450 ML","precio":8674.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"FERNET BRANCA X 750 ML","precio":13648.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"GASEOSA 7UP X 3L","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"GASEOSA MIRINDA X 3 LTS.","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"GASEOSA PEPSI X 3 L","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER ENERGY X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER MANGO LOCO X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER NGRY GREEN X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER NGRY GREEN ZERO X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER RESER PINEAP X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER UL SUNRISE X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER ULT PARADI X 473 CC","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER ULTRA WATE X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"MONSTER WATERMELON X 473 ML","precio":2323.65,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE FRUTAS TROP X 500 ML","precio":1667.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE FRUTAS TROP. X 995 ML","precio":2656.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE MANZANA X 500 ML","precio":1667.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE MANZANA X 995 ML","precio":2656.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE MOUN BLAST X 500 ML","precio":1667.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE MOUNT BLAST X 995 ML","precio":2656.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"POWERADE NARANJA X 500 ML","precio":1667.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"RED BULL X 250 ML","precio":1835.4,"uxb":24,"rubro":"BEBIDAS"},{"desc":"SANTA JULIA CHENIN DULCE X 750 CC","precio":4823.7,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SENSEI SMOKED WINE X 750 CC","precio":2746.8,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SIERRA DE LOS PADRES MANZANA X 1.5 LT","precio":741.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SIERRA DE LOS PADRES NAR X 1.5 LT","precio":741.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SIERRA DE LOS PADRES POM BCO X 1.5 LT","precio":741.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SODA SIFON SDP X 1.75 L","precio":794.85,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SODA SOCIAL X 2 LT","precio":909.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SPEED UNLIMITED LATA X 269 ML","precio":1076.25,"uxb":24,"rubro":"BEBIDAS"},{"desc":"SPEED UNLIMITED LATA X 473 ML","precio":1698.9,"uxb":12,"rubro":"BEBIDAS"},{"desc":"SPRITE LATA X 354 ML","precio":1020.6,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SPRITE RET X 2 LT","precio":2651.25,"uxb":8,"rubro":"BEBIDAS"},{"desc":"SPRITE VIDRIO RET X 1.25 LT","precio":2152.5,"uxb":8,"rubro":"BEBIDAS"},{"desc":"SPRITE X 1.5 LT","precio":2720.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SPRITE X 1LT","precio":2152.5,"uxb":8,"rubro":"BEBIDAS"},{"desc":"SPRITE X 2.25 LT","precio":3746.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SPRITE X 500ML","precio":1156.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"SPRITE ZERO X 1.5L","precio":2720.55,"uxb":6,"rubro":"BEBIDAS"},{"desc":"SPRITE ZERO X 2.25 LT","precio":3746.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"TACCONI BLANCO X 1.5L","precio":1081.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"TACCONI LIMON X 1.5 L","precio":1081.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"TACCONI SERRANO X 1.5 LT","precio":1081.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"TERMA CERO CUYANO X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA CUYANO X 1.35LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA LIMON X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA PATAGONICO S/AZ X 1.35LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA PATAGONICO X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA POMELO ROSADO S/AZ X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA POMELO ROSADO X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA SERRANO CERO X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TERMA SERRANO X 1.35 LT","precio":1447.95,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TRES TORRES BLANCO PET 12 x 1,5","precio":790.65,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TRES TORRES LIMON PET 12 x 1,5","precio":790.65,"uxb":12,"rubro":"BEBIDAS"},{"desc":"TRES TORRES SERRANO PET 12 x 1,5","precio":790.65,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VINO CAFAYATE MALBEC X 750 CC","precio":3096.45,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO CAB.SAUV.x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO CHARD x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO MALBEC x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO MALBEC x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO MERLOT x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO ROSE x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CORDERO CON PIEL DE LOBO SYRAH x750","precio":3150.0,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO CUATRO MONOS LOCOS MAL X 750 CC","precio":2651.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO DON VALENTIN LAC TINTO X 750 CC","precio":2633.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO NAMPE CAB SAUV X 750 CC","precio":2757.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO NAMPE MALBEC X 750","precio":2757.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO NAMPE MERLOT X 750 CC","precio":2757.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO NAMPE TEMPRANILLO X 750 CC","precio":2757.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO OVEJA BLACK CAB SAUV X 750 CC","precio":2455.95,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO OVEJA BLACK MALBEC X 750 CC","precio":2459.1,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO OVEJA BLACK RED BLEND X 750 CC","precio":3504.9,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO PROFUGO CAB SAU ESPECIAS X 750 CC","precio":2458.05,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO PROFUGO CHENIN DULCE X 750 CC","precio":2746.8,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO PROFUGO MALBEC FR ROJOS X 750 CC","precio":2458.05,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO PROFUGO MR FRANC X 750 CC","precio":3319.05,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO SAFARI MALBEC X 750 CC","precio":2574.6,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO TORO BLANCO CAJA X 1LT","precio":1394.4,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VINO TORO CLASICO X 750 ML","precio":2084.25,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO TORO TINTO CAJA X 1LT","precio":1691.55,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VINO TORO TINTO X 1L","precio":2129.4,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO TORO TINTO X 700 ML","precio":1606.5,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO VIÑAS DE BALBO BLANCO X 1.25 LT","precio":2148.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VINO VIÑAS DE BALBO TINTO X 1.25 LT","precio":2148.3,"uxb":6,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY APRICOT X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY BLOOD ORANGE X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY COCO X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY COSMIC X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY PASSION FRUIT X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY PINEAPPLE X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY RASPBERRY X 750 ML","precio":7750.05,"uxb":12,"rubro":"BEBIDAS"},{"desc":"VODKA SKYY X 750 ML","precio":6825.0,"uxb":12,"rubro":"BEBIDAS"},{"desc":"DETERG GIGANTE ALOE X 750 ML","precio":841.05,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"DETERG GIGANTE GLIC X 750 ML","precio":841.05,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"DETERG GIGANTE LIMON X 750 ML","precio":841.05,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"DETERG MAGISTRAL LIMON X 300 ML","precio":2063.25,"uxb":21,"rubro":"LIMPIEZA"},{"desc":"DETERG MAGISTRAL LIMON X 500 ML","precio":3339.0,"uxb":20,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ ALA MATIC ECO LAVADO DP X 3 L","precio":6293.7,"uxb":4,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ ALA PARA DILUIR X 500 ML","precio":5586.0,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ GRANBY BAJA ESP DP X 3 LT","precio":4161.15,"uxb":4,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ GRANBY DP MATIC X 3 L","precio":4161.15,"uxb":4,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ GRANBY DP MATIC X 800 ML","precio":1173.9,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"JABON LIQ GRANBY ROSA MATIC DP X 800 ML","precio":1173.9,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"LAVANDINA AYUDIN CLASICA X 1 LT","precio":971.25,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"LAVANDINA AYUDIN CLASICA X 2 LT","precio":2072.7,"uxb":8,"rubro":"LIMPIEZA"},{"desc":"LAVANDINA GIGANTE 1L","precio":1011.15,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"LAVANDINA GIGANTE X 2 L","precio":1948.8,"uxb":8,"rubro":"LIMPIEZA"},{"desc":"PAÑALES DUFFY G X 32 UN","precio":6649.65,"uxb":3,"rubro":"LIMPIEZA"},{"desc":"PAÑALES DUFFY M X 36 UN","precio":6649.65,"uxb":3,"rubro":"LIMPIEZA"},{"desc":"PAÑALES DUFFY P X 40 UN","precio":6649.65,"uxb":3,"rubro":"LIMPIEZA"},{"desc":"PAÑALES DUFFY XG X 28 UN","precio":6649.65,"uxb":3,"rubro":"LIMPIEZA"},{"desc":"PAÑALES DUFFY XXG X 26 UN","precio":6649.65,"uxb":3,"rubro":"LIMPIEZA"},{"desc":"PAPEL H. ELEGANTE S.H X 4 U","precio":1087.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"PAPEL H. ELEGANTE S.H X 6 U","precio":1788.15,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"PERFUMINA GIGANTE ANTIB JAZ X 900 ML","precio":933.45,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"PERFUMINA GIGANTE BEBE X 900 ML","precio":933.45,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"PERFUMINA GIGANTE CITRON X 900 ML","precio":933.45,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"PERFUMINA GIGANTE LAVAND X 900 ML","precio":933.45,"uxb":15,"rubro":"LIMPIEZA"},{"desc":"POETT AERO DESP ENERGIA X 360 ML","precio":1965.6,"uxb":6,"rubro":"LIMPIEZA"},{"desc":"POETT AERO FLORES PRIMAVERA X 360 CC","precio":1965.6,"uxb":6,"rubro":"LIMPIEZA"},{"desc":"POETT AERO FRESC LAVANDA X 360ML","precio":1965.6,"uxb":6,"rubro":"LIMPIEZA"},{"desc":"POETT AERO SOLO PARA TI X 360 CC","precio":1965.6,"uxb":6,"rubro":"LIMPIEZA"},{"desc":"POETT AERO SUAV ALGODON X 360 CC","precio":1965.6,"uxb":6,"rubro":"LIMPIEZA"},{"desc":"POETT LIQ F. DE PRIMAVERA 900 ML","precio":1234.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"POETT LIQ MUSICA PRIMAV X 900 ML","precio":1234.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"POETT LIQ SOLO PARA TI 900 ML","precio":1234.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"POETT LIQ SUA ALGODON X 900 ML","precio":1234.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"POETT LIQ SUAVIDA BEBE 900 ML","precio":1234.8,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"ROLLO COCINA ELEGANTE GIGANTE DH 200 P.","precio":1706.25,"uxb":12,"rubro":"LIMPIEZA"},{"desc":"ROLLO COCINA ELEGANTE X 3 U","precio":1365.0,"uxb":8,"rubro":"LIMPIEZA"}];
 
@@ -392,9 +462,88 @@ function doLogin() {
   showApp();
 }
 
+// ====== SEGUIMIENTO EN VIVO ======
+let _trackingInterval = null;
+let _trackingActivo = false;
+
+function toggleSeguimiento() {
+  if (_trackingActivo) {
+    detenerSeguimiento();
+  } else {
+    iniciarSeguimiento();
+  }
+}
+
+function iniciarSeguimiento() {
+  if (!navigator.geolocation) {
+    showToast('GPS no disponible en este dispositivo', 'error'); return;
+  }
+  if (!supabaseClient) initSupabase();
+  _trackingActivo = true;
+  updateRutaUI(true);
+  enviarPosicion(); // enviar inmediatamente
+  _trackingInterval = setInterval(enviarPosicion, 30000);
+}
+
+function detenerSeguimiento() {
+  _trackingActivo = false;
+  if (_trackingInterval) { clearInterval(_trackingInterval); _trackingInterval = null; }
+  updateRutaUI(false);
+  // Marcar como inactivo en Supabase
+  if (supabaseClient) {
+    supabaseClient.from('camioneta').update({ activo: false }).eq('id', 1).then(() => {});
+  }
+}
+
+function enviarPosicion() {
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const acc = Math.round(pos.coords.accuracy);
+    try {
+      await supabaseClient.from('camioneta').upsert([{
+        id: 1, lat, lng, activo: true,
+        repartidor: currentVendor || '',
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'id' });
+      const now = new Date().toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      document.getElementById('ruta-last-update').style.display = 'block';
+      document.getElementById('ruta-last-update').textContent = '📡 Último envío: ' + now;
+      document.getElementById('ruta-last-update').textContent = '📡 ' + now + '  ·  ±' + acc + 'm';
+    } catch(e) {
+      showToast('Error enviando posición', 'error');
+    }
+  }, err => {
+    showToast('Error GPS: ' + (err.code === 1 ? 'permiso denegado' : 'señal débil'), 'error');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+function updateRutaUI(activo) {
+  const title = document.getElementById('ruta-status-title');
+  const emoji = document.getElementById('truck-emoji');
+  const btn = document.getElementById('btn-toggle-ruta');
+  if (activo) {
+    title.textContent = 'Detener';
+    emoji.textContent = '📡';
+    btn.style.background = '#dc2626';
+    const upd = document.getElementById('ruta-last-update');
+    if (upd) upd.style.display = 'block';
+  } else {
+    title.textContent = 'GPS';
+    emoji.textContent = '🚚';
+    btn.style.background = 'rgba(255,255,255,0.2)';
+    const upd = document.getElementById('ruta-last-update');
+    if (upd) upd.style.display = 'none';
+  }
+}
+
+
 function doLogout() {
+  if (_trackingActivo) detenerSeguimiento();
   localStorage.removeItem('vendedor');
   currentVendor = null;
+  document.getElementById('fab-nuevo-cliente').style.display = 'none';
+  // tracking button is in header, always visible when logged in
   document.querySelectorAll('.vendor-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('btn-login').disabled = true;
   document.getElementById('screen-app').classList.remove('active');
@@ -409,10 +558,15 @@ function showApp() {
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString('es-AR', {weekday:'long', day:'numeric', month:'long'});
   
-  // Populate datalist
+  // Mostrar FAB
+  document.getElementById('fab-nuevo-cliente').style.display = 'block';
+  // tracking button is in header, always visible
+
+  // Populate datalist with static fallback, then load from Supabase
   const dl = document.getElementById('clientes-datalist');
   dl.innerHTML = CLIENTES.map(c => `<option value="${c}">`).join('');
-  
+  loadClientesSupabase();
+
   // Check connection
   checkConnection();
   loadMisPedidos();
@@ -432,6 +586,91 @@ async function checkConnection() {
   } catch(e) { dot.classList.add('offline'); }
 }
 
+// =============================================
+// CLIENTES DESDE SUPABASE
+// =============================================
+async function loadClientesSupabase() {
+  if (!supabaseClient) initSupabase();
+  try {
+    const { data, error } = await supabaseClient.from('clientes').select('*').order('nombre');
+    if (error || !data) return;
+    CLIENTES_DATA = data;
+    const dl = document.getElementById('clientes-datalist');
+    dl.innerHTML = data.map(c => `<option value="${c.nombre}">`).join('');
+  } catch(e) { /* fallback estático ya cargado */ }
+}
+
+function getClienteData(nombre) {
+  if (!nombre) return null;
+  return CLIENTES_DATA.find(c => c.nombre.toLowerCase() === nombre.toLowerCase()) || null;
+}
+
+function showClienteInfo(nombre) {
+  const card = document.getElementById('cliente-info-card');
+  if (!nombre) { card.style.display = 'none'; return; }
+  const c = getClienteData(nombre);
+  if (!c) { card.style.display = 'none'; return; }
+  const hasInfo = c.telefono || c.local || c.direccion || c.localidad || c.horarios;
+  if (!hasInfo) { card.style.display = 'none'; return; }
+  document.getElementById('ci-nombre').textContent = c.nombre;
+  document.getElementById('ci-local').textContent = c.local || '';
+  const rows = [];
+  if (c.telefono) rows.push(`📞 ${c.telefono}`);
+  if (c.direccion) rows.push(`📍 ${c.direccion}${c.localidad ? ', ' + c.localidad : ''}`);
+  if (c.horarios) rows.push(`🕐 ${c.horarios}`);
+  document.getElementById('ci-rows').innerHTML = rows.join('<br>');
+  card.style.display = 'block';
+}
+
+// =============================================
+// NUEVO CLIENTE (modal + FAB)
+// =============================================
+function openNuevoClienteModal() {
+  if (currentVendor) document.getElementById('nc-vendedor').value = currentVendor;
+  document.getElementById('modal-nuevo-cliente').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+function closeNuevoClienteModal() {
+  document.getElementById('modal-nuevo-cliente').style.display = 'none';
+  document.body.style.overflow = '';
+}
+// Cerrar al tocar fuera del modal
+document.addEventListener('click', function(e) {
+  const modal = document.getElementById('modal-nuevo-cliente');
+  if (modal && e.target === modal) closeNuevoClienteModal();
+});
+
+async function saveNuevoCliente() {
+  const nombre = document.getElementById('nc-nombre').value.trim();
+  if (!nombre) { showToast('El nombre es obligatorio', 'error'); return; }
+  const data = {
+    nombre,
+    local: document.getElementById('nc-local').value.trim(),
+    dni_cuit: document.getElementById('nc-dni').value.trim(),
+    telefono: document.getElementById('nc-telefono').value.trim(),
+    direccion: document.getElementById('nc-direccion').value.trim(),
+    localidad: document.getElementById('nc-localidad').value.trim(),
+    horarios: document.getElementById('nc-horarios').value.trim(),
+    vendedor: document.getElementById('nc-vendedor').value,
+  };
+  if (!supabaseClient) initSupabase();
+  try {
+    const { error } = await supabaseClient.from('clientes').insert([data]);
+    if (error) { showToast('Error: ' + error.message, 'error'); return; }
+    showToast('✅ Cliente guardado correctamente');
+    // Agregar al array local y recargar datalist
+    CLIENTES_DATA.push(data);
+    const dl = document.getElementById('clientes-datalist');
+    dl.innerHTML = CLIENTES_DATA.map(c => `<option value="${c.nombre}">`).join('');
+    // Limpiar formulario y cerrar modal
+    ['nc-nombre','nc-local','nc-dni','nc-telefono','nc-direccion','nc-localidad','nc-horarios'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('nc-vendedor').value = currentVendor || 'Mariano';
+    closeNuevoClienteModal();
+  } catch(e) { showToast('Error al guardar: ' + e.message, 'error'); }
+}
+
 // TABS
 function showTab(name, el) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -447,12 +686,12 @@ function showTab(name, el) {
 function searchProductos(q) {
   const dd = document.getElementById('prod-dropdown');
   if (!q || q.length < 2) { dd.classList.remove('open'); return; }
-  const results = PRODUCTOS.filter(p => p.desc.toLowerCase().includes(q.toLowerCase())).slice(0, 15);
+  const results = PRODUCTOS.filter(p => (p.descripcion||p.desc||'').toLowerCase().includes(q.toLowerCase())).slice(0, 15);
   if (!results.length) { dd.classList.remove('open'); return; }
   dd.innerHTML = results.map(p => `
     <div class="prod-item" onclick="addProduct(${JSON.stringify(p).replace(/"/g,"&quot;")})">
       <div>
-        <div class="prod-item-name">${p.desc}</div>
+        <div class="prod-item-name">${p.descripcion||p.desc}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">UxB: ${p.uxb || 1} · ${fmtPrice(p.precio)} c/u</div>
       </div>
       <div class="prod-item-price">${fmtPrice((p.precio||0)*(p.uxb||1))}/bulto</div>
@@ -461,9 +700,10 @@ function searchProductos(q) {
 }
 
 function addProduct(prod) {
-  const existing = pedidoItems.find(i => i.desc === prod.desc);
+  const nombre = prod.descripcion || prod.desc;
+  const existing = pedidoItems.find(i => i.desc === nombre);
   if (existing) { existing.qty++; } else {
-    pedidoItems.push({ desc: prod.desc, precio: prod.precio, uxb: prod.uxb || 1, qty: 1 });
+    pedidoItems.push({ desc: nombre, precio: prod.precio, uxb: prod.uxb || 1, qty: 1 });
   }
   document.getElementById('prod-dropdown').classList.remove('open');
   document.getElementById('inp-prod-search').value = '';
@@ -601,6 +841,7 @@ async function submitPedido() {
 
 function resetForm() {
   document.getElementById('inp-cliente').value = '';
+  document.getElementById('cliente-info-card').style.display = 'none';
   document.getElementById('inp-prod-search').value = '';
   document.getElementById('inp-obs').value = '';
   document.getElementById('inp-efectivo').value = '';
@@ -687,21 +928,36 @@ async function syncPendientes() {
   const btn = document.getElementById('btn-sync');
   btn.disabled = true;
   btn.textContent = '⏳ Sincronizando...';
+
   if (!supabaseClient) initSupabase();
+
   const allLocal = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
-  const unsynced = allLocal.filter(p => !p._synced && p.vendedor === currentVendor);
+  const unsynced = allLocal.filter(p => !p._synced);
+
   let ok = 0, fail = 0;
   for (const p of unsynced) {
     const { _id, _synced, ...pedido } = p;
     try {
       const { error } = await supabaseClient.from('pedidos').insert([pedido]);
-      if (!error) { p._synced = true; ok++; } else { fail++; }
+      if (!error) {
+        p._synced = true;
+        ok++;
+      } else {
+        fail++;
+      }
     } catch(e) { fail++; }
   }
+
   localStorage.setItem('pedidos_local', JSON.stringify(allLocal));
-  if (ok > 0 && fail === 0) showToast(`✅ ${ok} preventa${ok>1?'s':''} sincronizada${ok>1?'s':''}`, 'success');
-  else if (ok > 0) showToast(`⚠️ ${ok} sincronizadas, ${fail} fallaron`, '');
-  else showToast('❌ No se pudo sincronizar. Verificá la conexión.', 'error');
+
+  if (ok > 0 && fail === 0) {
+    showToast(`✅ ${ok} preventa${ok>1?'s':''} sincronizada${ok>1?'s':''}`, 'success');
+  } else if (ok > 0) {
+    showToast(`⚠️ ${ok} sincronizadas, ${fail} fallaron`, '');
+  } else {
+    showToast('❌ No se pudo sincronizar. Verificá la conexión.', 'error');
+  }
+
   btn.disabled = false;
   updateSyncBar();
   await loadMisPedidos();
@@ -711,8 +967,11 @@ function updateSyncBar() {
   const allLocal = JSON.parse(localStorage.getItem('pedidos_local') || '[]');
   const pending = allLocal.filter(p => !p._synced && p.vendedor === currentVendor).length;
   const bar = document.getElementById('sync-bar');
-  const cnt = document.getElementById('sync-count');
-  if (bar) { bar.style.display = pending > 0 ? 'block' : 'none'; if (cnt) cnt.textContent = pending; }
+  const count = document.getElementById('sync-count');
+  if (bar) {
+    bar.style.display = pending > 0 ? 'block' : 'none';
+    if (count) count.textContent = pending;
+  }
 }
 
 function renderResumen() {
@@ -814,123 +1073,26 @@ function captureGPS() {
       if (isIOS) {
         showToast('❌ Ubicación bloqueada. En iPhone: Configuración → Privacidad → Localización → Safari → "Al usar la app"', 'error');
       } else {
-        showToast('❌ Permiso de ubicación denegado. Habilitalo en la configuración del navegador.', 'error');
+        showToast('❌ Ubicación bloqueada. En Android: Configuración → Permisos → Localización → Safari', 'error');
       }
-      btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
-      badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
     } else if (err.code === 2) {
-      showToast('⚠️ GPS preciso no disponible, reintentando...', '');
-      navigator.geolocation.getCurrentPosition(
-        onGPSSuccess,
-        () => {
-          showToast('❌ GPS no disponible en este momento', 'error');
-          btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
-          badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
-        },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
-      );
+      showToast('❌ GPS no disponible. Verificá que el GPS esté activado.', 'error');
     } else {
-      showToast('❌ Tiempo de espera agotado. Intentá al aire libre o con WiFi activo.', 'error');
-      btn.disabled = false; btn.textContent = '📍 Capturar ubicación';
-      badge.className = 'gps-badge gps-none'; badge.textContent = 'Sin ubicación';
+      showToast('❌ Tiempo de espera agotado. Intentá de nuevo.', 'error');
     }
+    btn.disabled = false;
+    btn.textContent = '📍 Capturar ubicación';
+    badge.className = 'gps-badge gps-none';
+    badge.textContent = 'Sin ubicación';
   }
 
-  navigator.geolocation.getCurrentPosition(
-    onGPSSuccess,
-    onGPSError,
-    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-  );
-}
-
-async function saveClienteUbicacion(nombre, lat, lng) {
-  if (SUPABASE_URL === 'TU_SUPABASE_URL') {
-    showToast('⚠️ Supabase no configurado — ubicación solo guardada en este dispositivo', '');
-    return;
-  }
-  if (!supabaseClient) initSupabase();
-  try {
-    const { error } = await supabaseClient.from('clientes').upsert(
-      [{ nombre, lat, lng, capturado_por: currentVendor, capturado_at: new Date().toISOString() }],
-      { onConflict: 'nombre' }
-    );
-    if (!error) {
-      showToast('📍 Ubicación guardada para ' + nombre, 'success');
-      document.getElementById('gps-badge').className = 'gps-badge gps-already';
-      document.getElementById('gps-badge').textContent = '✅ Ubicación guardada';
-    } else {
-      showToast('⚠️ Error al guardar ubicación online', 'error');
-    }
-  } catch(e) { showToast('⚠️ Error al conectar con el servidor', 'error'); }
-}
-
-// Close dropdown on outside click
-document.addEventListener('click', e => {
-  if (!e.target.closest('.product-search-wrap')) {
-    document.getElementById('prod-dropdown').classList.remove('open');
-  }
-});
-
-// Auto-login if session exists
-window.addEventListener('load', () => {
-  const saved = localStorage.getItem('vendedor');
-  if (saved) { currentVendor = saved; showApp(); }
-});
-// UBICACIONES
-function searchUbiCliente(val) {
-  const dd = document.getElementById('ubi-dropdown');
-  if (!val) { dd.style.display='none'; return; }
-  const res = CLIENTES.filter(c=>c.toLowerCase().includes(val.toLowerCase())).slice(0,8);
-  if (!res.length) { dd.style.display='none'; return; }
-  dd.style.display='block';
-  dd.innerHTML = res.map(c=>'<div class="prod-item" onclick="selectUbiCliente(\'' + c.replace(/'/g,"\\\'")+'\')"><div class="prod-item-name">'+c+'</div></div>').join('');
-}
-function selectUbiCliente(n) {
-  document.getElementById('ubi-cliente').value=n;
-  document.getElementById('ubi-dropdown').style.display='none';
-  checkUbiClienteExistente(n);
-}
-async function checkUbiClienteExistente(nombre) {
-  const badge=document.getElementById('ubi-badge'), btn=document.getElementById('ubi-btn-gps');
-  if (!nombre||nombre.length<2) { badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación'; btn.textContent='📍 Capturar ubicación'; return; }
-  if (!supabaseClient) initSupabase();
-  try {
-    const {data}=await supabaseClient.from('clientes').select('lat').eq('nombre',nombre).maybeSingle();
-    if (data&&data.lat) { badge.className='gps-badge gps-already'; badge.textContent='✅ Ubicación guardada'; btn.textContent='🔄 Actualizar ubicación'; }
-    else { badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación'; btn.textContent='📍 Capturar ubicación'; }
-  } catch(e){}
-}
-function captureUbiGPS() {
-  const cliente=document.getElementById('ubi-cliente').value.trim();
-  if (!cliente) { showToast('⚠️ Ingresá el nombre del cliente', 'error'); return; }
-  const btn=document.getElementById('ubi-btn-gps'), badge=document.getElementById('ubi-badge');
-  btn.disabled=true; btn.textContent='⏳ Localizando...';
-  badge.className='gps-badge gps-loading'; badge.textContent='Buscando GPS...';
-  if (!navigator.geolocation) { showToast('GPS no disponible','error'); btn.disabled=false; btn.textContent='📍 Capturar ubicación'; return; }
-  function ok(pos) {
-    const lat=pos.coords.latitude,lng=pos.coords.longitude,acc=Math.round(pos.coords.accuracy);
-    badge.className='gps-badge gps-saved'; badge.textContent='📍 ±'+acc+'m';
-    btn.textContent='✅ Guardando...';
-    saveClienteUbicacion(cliente,lat,lng).then(()=>{ btn.textContent='✅ Guardado'; btn.disabled=false; badge.className='gps-badge gps-already'; badge.textContent='✅ Ubicación guardada'; loadUbiLista(); });
-  }
-  function er(err) {
-    if (err.code===1) { const isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent); showToast(isIOS?'❌ En iPhone: Configuración → Privacidad → Localización → Safari':'❌ Permiso denegado','error'); }
-    else if (err.code===2) { navigator.geolocation.getCurrentPosition(ok,()=>showToast('❌ GPS no disponible','error'),{enableHighAccuracy:false,timeout:15000,maximumAge:30000}); return; }
-    else showToast('❌ Tiempo agotado. Intentá al aire libre.','error');
-    btn.disabled=false; btn.textContent='📍 Capturar ubicación'; badge.className='gps-badge gps-none'; badge.textContent='Sin ubicación';
-  }
-  navigator.geolocation.getCurrentPosition(ok,er,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
-}
-async function loadUbiLista() {
-  const lista=document.getElementById('ubi-lista');
-  if (!supabaseClient) initSupabase();
-  try {
-    const {data,error}=await supabaseClient.from('clientes').select('nombre,capturado_at').not('lat','is',null).order('capturado_at',{ascending:false});
-    if (error||!data||!data.length) { lista.innerHTML='<span style="color:var(--muted)">Aún no hay clientes con GPS cargado.</span>'; return; }
-    lista.innerHTML=data.map(c=>'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:600">'+c.nombre+'</div><div style="font-size:11px;color:var(--muted)">'+( c.capturado_at?new Date(c.capturado_at).toLocaleDateString('es-AR'):'')+' </div></div><span style="color:var(--green);font-size:11px;font-weight:700">✅ GPS</span></div>').join('');
-  } catch(e) { lista.innerHTML='<span style="color:var(--muted)">Error al cargar.</span>'; }
+  navigator.geolocation.getCurrentPosition(onGPSSuccess, onGPSError, {
+    enableHighAccuracy: true, timeout: 15000, maximumAge: 0
+  });
 }
 
 </script>
+
+
 </body>
 </html>
