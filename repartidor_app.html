@@ -507,11 +507,14 @@ async function confirmarEntrega() {
       body: JSON.stringify({ entregado: 'SI', efectivo: ef, transferencia: tr, pagado: pagado, obs: obs || pedidoActual.obs || '' })
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    // Guardar referencia antes de cerrar (closeModalBtn pone pedidoActual = null)
+    const pedidoCerrado = pedidoActual;
     closeModalBtn();
-    showToast('✅ Entrega registrada — ' + formatNombre(pedidoActual.cliente), 'success');
-    const idx = pedidosPendientes.findIndex(p => p.id === pedidoActual.id);
+    showToast('✅ Entrega registrada — ' + formatNombre(pedidoCerrado.cliente), 'success');
+    // Mover a entregados localmente
+    const idx = pedidosPendientes.findIndex(p => p.id === pedidoCerrado.id);
     if (idx !== -1) {
-      const moved = { ...pedidosPendientes[idx], entregado: 'SI', efectivo: ef, transferencia: tr, pagado, obs: obs || pedidoActual.obs || '' };
+      const moved = { ...pedidosPendientes[idx], entregado: 'SI', efectivo: ef, transferencia: tr, pagado, obs: obs || pedidoCerrado.obs || '' };
       pedidosPendientes.splice(idx, 1);
       const hoy = new Date().toISOString().slice(0, 10);
       if (moved.fecha === hoy) pedidosEntregados.unshift(moved);
