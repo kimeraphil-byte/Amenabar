@@ -363,7 +363,7 @@ async function enviarPosicion(lat, lng) {
         'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal'
       },
       body: JSON.stringify({
-        repartidor: repartidorNombre, lat, lng, activo: true,
+        repartidor: repartidorNombre, lat, lng, activo: true, tipo: 'repartidor',
         updated_at: new Date().toISOString()
       })
     });
