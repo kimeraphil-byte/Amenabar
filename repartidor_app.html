@@ -49,7 +49,15 @@
     }
     #gpsBtn.off { background: rgba(255,255,255,0.2); color: #fff; }
     #gpsBtn.on  { background: #10b981; color: #fff; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+    #capturaBtn {
+      margin-top: 10px; width: 100%; padding: 8px 14px; border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 10px; background: rgba(255,255,255,0.1); color: #fff;
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    #capturaBtn:active { background: rgba(255,255,255,0.25); }
+    #capturaBtn:disabled { opacity: 0.5; cursor: not-allowed; } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
 
     /* TABS */
     #tabBar {
@@ -212,6 +220,7 @@
         <div class="subtitle" id="gpsStatus">GPS inactivo</div>
       </div>
       <button id="gpsBtn" class="off" onclick="toggleGPS()">📍 Activar GPS</button>
+    <button id="capturaBtn" onclick="capturarUbicacion()">📍 Capturar ubicación ahora</button>
     </div>
   </div>
 
@@ -554,6 +563,38 @@ async function revertirEntrega(id) {
   } catch (e) {
     showToast('Error al revertir: ' + e.message, 'error');
   }
+}
+
+// ─── CAPTURA ÚNICA DE POSICIÓN ─────────────────────────────────────────────
+function capturarUbicacion() {
+  if (!navigator.geolocation) {
+    showToast('GPS no disponible en este dispositivo', 'error'); return;
+  }
+  const btn = document.getElementById('capturaBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Obteniendo posición...';
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      await enviarPosicion(pos.coords.latitude, pos.coords.longitude);
+      const acc = Math.round(pos.coords.accuracy);
+      showToast('📍 Posición enviada ±' + acc + 'm', 'success');
+      btn.textContent = '✅ Posición enviada';
+      setTimeout(() => {
+        btn.textContent = '📍 Capturar ubicación ahora';
+        btn.disabled = false;
+      }, 3000);
+    },
+    err => {
+      let msg = 'No se pudo obtener GPS';
+      if (err.code === 1) msg = 'Permiso de ubicación denegado';
+      else if (err.code === 2) msg = 'GPS no disponible';
+      else if (err.code === 3) msg = 'Tiempo de espera agotado';
+      showToast(msg, 'error');
+      btn.textContent = '📍 Capturar ubicación ahora';
+      btn.disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
 }
 
 function showToast(msg, type = '') {
