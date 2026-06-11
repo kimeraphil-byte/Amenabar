@@ -446,7 +446,7 @@ function renderTab() {
     const totalCobrado = totalEfectivo + totalTransf;
     bar.style.display = 'flex';
     bar.innerHTML = `<div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Entregados hoy</div></div><div class="summary-item"><div class="val">${formatMonto(totalCobrado)}</div><div class="lbl">Total cobrado</div></div><div class="summary-item"><div class="val">${formatMonto(totalEfectivo)}</div><div class="lbl">Efectivo</div></div><div class="summary-item"><div class="val">${formatMonto(totalTransf)}</div><div class="lbl">Transferencia</div></div>`;
-    container.innerHTML = lista.map(p => `<div class="pedido-card entregado"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="cobro-info">${Number(p.efectivo) > 0 ? '<span>💵 Efectivo: <b>' + formatMonto(p.efectivo) + '</b></span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transferencia: <b>' + formatMonto(p.transferencia) + '</b></span>' : ''}</div><div style="margin-top:10px"><span class="entregado-badge">✅ Entregado</span></div>${p.obs ? '<div style="margin-top:8px;font-size:12px;color:#6b7280;">📝 ' + p.obs + '</div>' : ''}</div>`).join('');
+    container.innerHTML = lista.map(p => `<div class="pedido-card entregado"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="cobro-info">${Number(p.efectivo) > 0 ? '<span>💵 Efectivo: <b>' + formatMonto(p.efectivo) + '</b></span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transferencia: <b>' + formatMonto(p.transferencia) + '</b></span>' : ''}</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="entregado-badge">✅ Entregado</span><button onclick="revertirEntrega(${p.id})" style="background:none;border:1px solid #d97706;color:#d97706;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer">↩ Revertir</button></div>${p.obs ? '<div style="margin-top:8px;font-size:12px;color:#6b7280;">📝 ' + p.obs + '</div>' : ''}</div>`).join('');
   }
 }
 
@@ -524,6 +524,35 @@ async function confirmarEntrega() {
     showToast('Error al guardar: ' + e.message, 'error');
   } finally {
     btn.textContent = '✅ Confirmar Entrega'; btn.disabled = false;
+  }
+}
+
+async function revertirEntrega(id) {
+  if (!confirm('¿Revertir esta entrega? El pedido volverá a Pendientes.')) return;
+  try {
+    const resp = await fetch(
+      SUPABASE_URL + '/rest/v1/pedidos?id=eq.' + id,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ entregado: '', pagado: '', efectivo: 0, transferencia: 0 })
+      }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const idx = pedidosEntregados.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      const rev = { ...pedidosEntregados[idx], entregado: '', pagado: '', efectivo: 0, transferencia: 0 };
+      pedidosEntregados.splice(idx, 1);
+      pedidosPendientes.push(rev);
+      pedidosPendientes.sort((a, b) => a.cliente.localeCompare(b.cliente));
+    }
+    showToast('↩ Entrega revertida — pedido vuelve a Pendientes', 'success');
+    renderTab();
+  } catch (e) {
+    showToast('Error al revertir: ' + e.message, 'error');
   }
 }
 
