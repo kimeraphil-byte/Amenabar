@@ -485,6 +485,36 @@ function closeModalBtn() {
   if (btn) { btn.textContent = '📍 Capturar ubicación del cliente'; btn.disabled = false; }
   if (badge) { badge.className = 'gps-modal-badge none'; badge.textContent = 'Sin ubicación guardada'; }
 }
+
+function actualizarCobro() {
+  if (!pedidoActual) return;
+  const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
+  const tr = parseFloat(document.getElementById('inputTransferencia').value) || 0;
+  const total = Number(pedidoActual.monto);
+  const cobrado = ef + tr;
+  const restante = total - cobrado;
+  const divRest = document.getElementById('cobroRestante');
+  const divComp = document.getElementById('cobroCompleto');
+  if (cobrado <= 0) { divRest.style.display = 'none'; divComp.style.display = 'none'; return; }
+  if (restante > 0.01) {
+    divComp.style.display = 'none';
+    divRest.style.display = 'block';
+    divRest.textContent = '⚠️ Falta cobrar: ' + formatMonto(restante);
+  } else if (restante < -0.01) {
+    divRest.style.display = 'none';
+    divComp.style.display = 'block';
+    divComp.style.background = '#fee2e2';
+    divComp.style.color = '#991b1b';
+    divComp.textContent = '⚠️ Cobrado de más: ' + formatMonto(Math.abs(restante));
+  } else {
+    divRest.style.display = 'none';
+    divComp.style.display = 'block';
+    divComp.style.background = '#d1fae5';
+    divComp.style.color = '#065f46';
+    divComp.textContent = '✅ Cobro completo';
+  }
+}
+
 async function confirmarEntrega() {
   if (!pedidoActual) return;
   const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
