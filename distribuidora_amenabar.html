@@ -1044,21 +1044,24 @@ async function loadCamioneta() {
       const updated = v.updated_at ? new Date(v.updated_at) : null;
       const minutos = updated ? Math.round((ahora - updated) / 60000) : null;
       const reciente = minutos !== null && minutos < 3;
+      const esRep = v.tipo === 'repartidor';
+      const emojiTipo = esRep ? '🛵' : '🚗';
+      const labelTipo = esRep ? 'Repartidor' : 'Vendedor';
       let badgeBg, badgeColor, badgeText, emoji, statusText, timeText;
       if (v.activo && reciente) {
         badgeBg = '#d1fae5'; badgeColor = '#059669'; badgeText = '🟢 En ruta';
-        emoji = '📡';
-        statusText = '🚚 ' + (v.repartidor || 'Vendedor') + ' — en movimiento';
+        emoji = emojiTipo;
+        statusText = emojiTipo + ' ' + (v.repartidor || labelTipo) + ' — en movimiento';
         timeText = 'Última señal hace ' + minutos + ' min';
       } else if (v.lat) {
         badgeBg = '#fef3c7'; badgeColor = '#d97706'; badgeText = minutos !== null ? 'Hace ' + minutos + ' min' : 'Sin señal';
-        emoji = '🚚';
-        statusText = '🚚 ' + (v.repartidor || 'Vendedor');
+        emoji = emojiTipo;
+        statusText = emojiTipo + ' ' + (v.repartidor || labelTipo);
         timeText = updated ? 'Última posición: ' + updated.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '';
       } else {
         badgeBg = '#f3f4f6'; badgeColor = '#6b7280'; badgeText = 'Inactivo';
-        emoji = '🚚';
-        statusText = (v.repartidor || 'Vendedor') + ' sin posición';
+        emoji = emojiTipo;
+        statusText = (v.repartidor || labelTipo) + ' sin posición';
         timeText = 'Activá el seguimiento desde el celular';
       }
       return `<div style="background:#fff;border-radius:12px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
@@ -1075,14 +1078,18 @@ async function loadCamioneta() {
     data.forEach(v => {
       if (!v.lat || !v.lng) return;
       const updated = v.updated_at ? new Date(v.updated_at) : null;
-      const popupText = `<b>🚚 ${v.repartidor || 'Vendedor'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`;
+      const tipoLabel = v.tipo === 'repartidor' ? '🛵 Repartidor' : '🚗 Vendedor';
+      const popupText = `<b>${tipoLabel}: ${v.repartidor || ''}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`;
       if (_camMarkers[v.repartidor]) {
         _camMarkers[v.repartidor].setLatLng([v.lat, v.lng]);
         _camMarkers[v.repartidor].getPopup().setContent(popupText);
       } else {
+        const esRepartidor = v.tipo === 'repartidor';
+        const bgColor = esRepartidor ? (v.activo ? '#ea580c' : '#f97316') : (v.activo ? '#6366f1' : '#8b8cf8');
+        const emoji = esRepartidor ? '🛵' : '🚗';
         const icon = L.divIcon({
-          html: `<div style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));line-height:1">${v.activo ? '📡' : '🚚'}</div>`,
-          className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+          html: `<div style="background:${bgColor};color:#fff;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)">${emoji}</div>`,
+          className: '', iconSize: [38, 38], iconAnchor: [19, 19]
         });
         _camMarkers[v.repartidor] = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 })
           .addTo(logMap)
