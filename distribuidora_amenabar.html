@@ -411,14 +411,7 @@
       ⚠️ Configurá SUPABASE_URL y SUPABASE_KEY en el código para ver ubicaciones en tiempo real.
     </div>
     <div class="logistics-stats" id="logistics-stats"></div>
-    <div id="camioneta-bar" style="display:none;margin-bottom:16px;background:#fff;border-radius:12px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <span style="font-size:20px" id="cam-emoji">🚚</span>
-      <div style="flex:1">
-        <div style="font-size:13px;font-weight:700" id="cam-status">Sin señal</div>
-        <div style="font-size:12px;color:#6b7280" id="cam-time"></div>
-      </div>
-      <span id="cam-badge" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:#f3f4f6;color:#6b7280">Inactivo</span>
-    </div>
+    <div id="camioneta-bar" style="margin-bottom:16px"></div>
     <div class="grid-2" style="margin-bottom:16px">
       <div>
         <label style="font-size:12px;font-weight:600;color:#6b7280;display:block;margin-bottom:6px">FECHA DE RUTA</label>
@@ -1036,54 +1029,72 @@ let clientesGPS = [];
 let logInitialized = false;
 
 // ====== CAMIONETA EN VIVO ======
-let _camMarker = null;
+let _camMarkers = {}; // keyed by repartidor name
 let _camInterval = null;
 
 async function loadCamioneta() {
   try {
-    const { data } = await getSB().from('camioneta').select('*').eq('id', 1).maybeSingle();
-    if (!data) return;
+    const { data } = await getSB().from('camioneta').select('*');
+    if (!data || !data.length) return;
+
     const bar = document.getElementById('camioneta-bar');
-    bar.style.display = 'flex';
     const ahora = new Date();
-    const updated = data.updated_at ? new Date(data.updated_at) : null;
-    const minutos = updated ? Math.round((ahora - updated) / 60000) : null;
-    const reciente = minutos !== null && minutos < 3;
-    const badge = document.getElementById('cam-badge');
-    const status = document.getElementById('cam-status');
-    const camTime = document.getElementById('cam-time');
-    const emoji = document.getElementById('cam-emoji');
-    if (data.activo && reciente) {
-      badge.style.background = '#d1fae5'; badge.style.color = '#059669'; badge.textContent = '🟢 En ruta';
-      status.textContent = '🚚 ' + (data.repartidor || 'Camioneta') + ' — en movimiento';
-      camTime.textContent = 'Última señal hace ' + minutos + ' min';
-      emoji.textContent = '📡';
-    } else if (data.lat) {
-      badge.style.background = '#fef3c7'; badge.style.color = '#d97706'; badge.textContent = minutos !== null ? 'Hace ' + minutos + ' min' : 'Sin señal';
-      status.textContent = '🚚 ' + (data.repartidor || 'Camioneta');
-      camTime.textContent = updated ? 'Última posición: ' + updated.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '';
-      emoji.textContent = '🚚';
-    } else {
-      badge.style.background = '#f3f4f6'; badge.style.color = '#6b7280'; badge.textContent = 'Inactivo';
-      status.textContent = 'Camioneta sin posición';
-      camTime.textContent = 'Activá el seguimiento desde el celular del repartidor';
-      emoji.textContent = '🚚';
-      return;
-    }
-    if (!data.lat || !logMap) return;
-    // Update or create truck marker
-    if (_camMarker) {
-      _camMarker.setLatLng([data.lat, data.lng]);
-    } else {
-      const truckIcon = L.divIcon({
-        html: `<div style="font-size:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));line-height:1">🚚</div>`,
-        className: '', iconSize: [32, 32], iconAnchor: [16, 16]
-      });
-      _camMarker = L.marker([data.lat, data.lng], { icon: truckIcon, zIndexOffset: 1000 })
-        .addTo(logMap)
-        .bindPopup(`<b>🚚 ${data.repartidor || 'Camioneta'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`);
-    }
-    _camMarker.getPopup().setContent(`<b>🚚 ${data.repartidor || 'Camioneta'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`);
+
+    bar.innerHTML = data.map(v => {
+      const updated = v.updated_at ? new Date(v.updated_at) : null;
+      const minutos = updated ? Math.round((ahora - updated) / 60000) : null;
+      const reciente = minutos !== null && minutos < 3;
+      let badgeBg, badgeColor, badgeText, emoji, statusText, timeText;
+      if (v.activo && reciente) {
+        badgeBg = '#d1fae5'; badgeColor = '#059669'; badgeText = '🟢 En ruta';
+        emoji = '📡';
+        statusText = '🚚 ' + (v.repartidor || 'Vendedor') + ' — en movimiento';
+        timeText = 'Última señal hace ' + minutos + ' min';
+      } else if (v.lat) {
+        badgeBg = '#fef3c7'; badgeColor = '#d97706'; badgeText = minutos !== null ? 'Hace ' + minutos + ' min' : 'Sin señal';
+        emoji = '🚚';
+        statusText = '🚚 ' + (v.repartidor || 'Vendedor');
+        timeText = updated ? 'Última posición: ' + updated.toLocaleTimeString('es-AR', {hour:'2-digit',minute:'2-digit'}) : '';
+      } else {
+        badgeBg = '#f3f4f6'; badgeColor = '#6b7280'; badgeText = 'Inactivo';
+        emoji = '🚚';
+        statusText = (v.repartidor || 'Vendedor') + ' sin posición';
+        timeText = 'Activá el seguimiento desde el celular';
+      }
+      return `<div style="background:#fff;border-radius:12px;padding:12px 18px;box-shadow:0 1px 3px rgba(0,0,0,0.08);display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="font-size:20px">${emoji}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:700">${statusText}</div>
+          <div style="font-size:12px;color:#6b7280">${timeText}</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;background:${badgeBg};color:${badgeColor}">${badgeText}</span>
+      </div>`;
+    }).join('');
+
+    if (!logMap) return;
+    data.forEach(v => {
+      if (!v.lat || !v.lng) return;
+      const updated = v.updated_at ? new Date(v.updated_at) : null;
+      const popupText = `<b>🚚 ${v.repartidor || 'Vendedor'}</b><br>Última señal: ${updated ? updated.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) : '—'}`;
+      if (_camMarkers[v.repartidor]) {
+        _camMarkers[v.repartidor].setLatLng([v.lat, v.lng]);
+        _camMarkers[v.repartidor].getPopup().setContent(popupText);
+      } else {
+        const icon = L.divIcon({
+          html: `<div style="font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));line-height:1">${v.activo ? '📡' : '🚚'}</div>`,
+          className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+        });
+        _camMarkers[v.repartidor] = L.marker([v.lat, v.lng], { icon, zIndexOffset: 1000 })
+          .addTo(logMap)
+          .bindPopup(popupText);
+      }
+    });
+    Object.keys(_camMarkers).forEach(name => {
+      if (!data.find(v => v.repartidor === name)) {
+        logMap.removeLayer(_camMarkers[name]);
+        delete _camMarkers[name];
+      }
+    });
   } catch(e) {}
 }
 
