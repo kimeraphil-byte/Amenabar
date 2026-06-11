@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>🚚 Repartidor - Amenabar</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a1a; min-height: 100vh; }
+
+    /* LOGIN */
+    #loginScreen {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 32px 24px; background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+    }
+    #loginScreen .logo { font-size: 52px; margin-bottom: 12px; }
+    #loginScreen h1 { color: #fff; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    #loginScreen p { color: rgba(255,255,255,0.7); font-size: 14px; margin-bottom: 32px; }
+    #loginScreen input {
+      width: 100%; max-width: 320px; padding: 14px 16px; border: none; border-radius: 12px;
+      font-size: 16px; margin-bottom: 14px; outline: none; background: rgba(255,255,255,0.15);
+      color: #fff; placeholder-color: rgba(255,255,255,0.5);
+    }
+    #loginScreen input::placeholder { color: rgba(255,255,255,0.5); }
+    #loginScreen button {
+      width: 100%; max-width: 320px; padding: 14px; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      background: #f59e0b; color: #1a1a1a; transition: opacity 0.2s;
+    }
+    #loginScreen button:active { opacity: 0.85; }
+
+    /* HEADER */
+    #appHeader {
+      background: linear-gradient(135deg, #1e3a5f 0%, #2d6a9f 100%);
+      padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    #appHeader .top-row { display: flex; align-items: center; justify-content: space-between; }
+    #appHeader .title { color: #fff; font-size: 17px; font-weight: 700; }
+    #appHeader .subtitle { color: rgba(255,255,255,0.7); font-size: 12px; margin-top: 2px; }
+    #gpsBtn {
+      padding: 8px 14px; border: none; border-radius: 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    #gpsBtn.off { background: rgba(255,255,255,0.2); color: #fff; }
+    #gpsBtn.on  { background: #10b981; color: #fff; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
+
+    /* TABS */
+    #tabBar {
+      display: flex; background: #fff; border-bottom: 2px solid #e5e7eb;
+      position: sticky; top: 68px; z-index: 99;
+    }
+    .tab-btn {
+      flex: 1; padding: 12px 8px; border: none; background: transparent;
+      font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer;
+      border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.2s;
+    }
+    .tab-btn.active { color: #1e3a5f; border-bottom-color: #1e3a5f; }
+
+    /* CONTENT */
+    #appContent { padding: 16px; padding-bottom: 32px; }
+
+    /* PEDIDO CARD */
+    .pedido-card {
+      background: #fff; border-radius: 14px; padding: 16px;
+      margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      border-left: 4px solid #e5e7eb;
+    }
+    .pedido-card.pendiente { border-left-color: #f59e0b; }
+    .pedido-card.entregado { border-left-color: #10b981; }
+    .pedido-card .cliente {
+      font-size: 16px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px;
+    }
+    .pedido-card .meta {
+      font-size: 12px; color: #6b7280; margin-bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .pedido-card .monto {
+      font-size: 20px; font-weight: 800; color: #1e3a5f; margin-bottom: 12px;
+    }
+    .pedido-card .pago-detalle {
+      font-size: 12px; color: #6b7280; display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .pedido-card .pago-detalle span { display: flex; align-items: center; gap: 4px; }
+    .btn-entregar {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+      background: #1e3a5f; color: #fff;
+    }
+    .btn-entregar:active { opacity: 0.85; }
+    .entregado-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #d1fae5; color: #059669; padding: 6px 12px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+    }
+    .cobro-info {
+      font-size: 13px; color: #374151; display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+    }
+
+    /* EMPTY STATE */
+    .empty-state {
+      text-align: center; padding: 60px 24px; color: #9ca3af;
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; }
+
+    /* SUMMARY BAR */
+    #summaryBar {
+      background: #fff; border-radius: 12px; padding: 14px 16px;
+      margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .summary-item { flex: 1; min-width: 100px; text-align: center; }
+    .summary-item .val { font-size: 18px; font-weight: 800; color: #1e3a5f; }
+    .summary-item .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+    /* MODAL */
+    #modalOverlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 200; align-items: flex-end; justify-content: center;
+    }
+    #modalOverlay.open { display: flex; }
+    #modalBox {
+      background: #fff; border-radius: 20px 20px 0 0; padding: 24px 20px 40px;
+      width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    }
+    #modalBox h2 { font-size: 18px; font-weight: 800; color: #1a1a1a; margin-bottom: 4px; }
+    #modalBox .modal-cliente { font-size: 14px; color: #6b7280; margin-bottom: 20px; }
+    #modalBox .monto-total {
+      background: #f0f2f5; border-radius: 12px; padding: 14px 16px;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    }
+    #modalBox .monto-total .lbl { font-size: 14px; color: #6b7280; }
+    #modalBox .monto-total .val { font-size: 22px; font-weight: 800; color: #1e3a5f; }
+    .input-group { margin-bottom: 16px; }
+    .input-group label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .input-group input {
+      width: 100%; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px;
+      font-size: 16px; outline: none; transition: border-color 0.2s;
+    }
+    .input-group input:focus { border-color: #1e3a5f; }
+    #cobroRestante {
+      background: #fef3c7; border-radius: 10px; padding: 12px 14px;
+      font-size: 14px; font-weight: 600; color: #92400e; margin-bottom: 20px; display: none;
+    }
+    #cobroCompleto {
+      background: #d1fae5; border-radius: 10px; padding: 12px 14px;
+      font-size: 14px; font-weight: 600; color: #065f46; margin-bottom: 20px; display: none;
+    }
+    .input-group-obs { margin-bottom: 20px; }
+    .input-group-obs label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .input-group-obs textarea {
+      width: 100%; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px;
+      font-size: 15px; outline: none; resize: vertical; min-height: 70px; font-family: inherit;
+    }
+    #btnConfirmar {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; cursor: pointer; background: #10b981; color: #fff;
+      transition: opacity 0.2s; margin-bottom: 10px;
+    }
+    #btnConfirmar:active { opacity: 0.85; }
+    #btnCancelar {
+      width: 100%; padding: 12px; border: 2px solid #e5e7eb; border-radius: 12px;
+      font-size: 15px; font-weight: 600; cursor: pointer; background: transparent; color: #6b7280;
+    }
+
+    /* TOAST */
+    #toast {
+      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      background: #1a1a1a; color: #fff; padding: 12px 20px; border-radius: 20px;
+      font-size: 14px; font-weight: 500; z-index: 300; opacity: 0; pointer-events: none;
+      transition: opacity 0.3s; white-space: nowrap; max-width: 90vw;
+    }
+    #toast.success { background: #059669; }
+    #toast.error { background: #dc2626; }
+    #toast.show { opacity: 1; }
+
+    /* LOADING */
+    .loading-spinner {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 40px 24px; color: #6b7280; font-size: 14px;
+    }
+    .spinner {
+      width: 24px; height: 24px; border: 3px solid #e5e7eb;
+      border-top-color: #1e3a5f; border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="logo">🚚</div>
+  <h1>Distribuidora Amenabar</h1>
+  <p>App del Repartidor</p>
+  <input type="text" id="inputNombre" placeholder="Tu nombre (ej: Carlos)" autocomplete="off" />
+  <button onclick="doLogin()">Entrar</button>
+</div>
+
+<!-- APP -->
+<div id="appMain" style="display:none">
+  <div id="appHeader">
+    <div class="top-row">
+      <div>
+        <div class="title">🚚 <span id="headerNombre">Repartidor</span></div>
+        <div class="subtitle" id="gpsStatus">GPS inactivo</div>
+      </div>
+      <button id="gpsBtn" class="off" onclick="toggleGPS()">📍 Activar GPS</button>
+    </div>
+  </div>
+
+  <div id="tabBar">
+    <button class="tab-btn active" onclick="switchTab('pendientes')" id="tabPendientes">📦 Pendientes</button>
+    <button class="tab-btn" onclick="switchTab('entregados')" id="tabEntregados">✅ Entregados hoy</button>
+  </div>
+
+  <div id="appContent">
+    <div id="summaryBar" style="display:none"></div>
+    <div id="listContainer">
+      <div class="loading-spinner"><div class="spinner"></div> Cargando pedidos...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ENTREGA -->
+<div id="modalOverlay" onclick="closeModal(event)">
+  <div id="modalBox">
+    <h2>📦 Registrar Entrega</h2>
+    <div class="modal-cliente" id="modalCliente"></div>
+    <div class="monto-total">
+      <span class="lbl">Total del pedido</span>
+      <span class="val" id="modalMonto"></span>
+    </div>
+    <div class="input-group">
+      <label>💵 Efectivo recibido</label>
+      <input type="number" id="inputEfectivo" placeholder="0" min="0" step="0.01" oninput="actualizarCobro()" />
+    </div>
+    <div class="input-group">
+      <label>📱 Transferencia recibida</label>
+      <input type="number" id="inputTransferencia" placeholder="0" min="0" step="0.01" oninput="actualizarCobro()" />
+    </div>
+    <div id="cobroRestante"></div>
+    <div id="cobroCompleto"></div>
+    <div class="input-group-obs">
+      <label>📝 Observaciones (opcional)</label>
+      <textarea id="inputObs" placeholder="Ej: cliente pidió factura, no había nadie..."></textarea>
+    </div>
+    <button id="btnConfirmar" onclick="confirmarEntrega()">✅ Confirmar Entrega</button>
+    <button id="btnCancelar" onclick="closeModalBtn()">Cancelar</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
+
+let repartidorNombre = '';
+let gpsActivo = false;
+let watchId = null;
+let gpsInterval = null;
+let currentTab = 'pendientes';
+let pedidosPendientes = [];
+let pedidosEntregados = [];
+let pedidoActual = null;
+
+// ─── LOGIN ──────────────────────────────────────────────────────────────────
+function doLogin() {
+  const nombre = document.getElementById('inputNombre').value.trim();
+  if (!nombre) { showToast('Ingresá tu nombre', 'error'); return; }
+  repartidorNombre = nombre;
+  localStorage.setItem('repartidor_nombre', nombre);
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appMain').style.display = 'block';
+  document.getElementById('headerNombre').textContent = nombre;
+  loadPedidos();
+}
+
+window.onload = function() {
+  const saved = localStorage.getItem('repartidor_nombre');
+  if (saved) {
+    document.getElementById('inputNombre').value = saved;
+  }
+  document.getElementById('inputNombre').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+};
+
+// ─── GPS ─────────────────────────────────────────────────────────────────────
+function toggleGPS() {
+  if (gpsActivo) detenerGPS();
+  else iniciarGPS();
+}
+
+function iniciarGPS() {
+  if (!navigator.geolocation) {
+    showToast('GPS no disponible en este dispositivo', 'error'); return;
+  }
+  const btn = document.getElementById('gpsBtn');
+  btn.textContent = '⏳ Activando...';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      gpsActivo = true;
+      btn.textContent = '📡 GPS activo';
+      btn.className = 'on';
+      document.getElementById('gpsStatus').textContent = 'GPS activo — enviando posición';
+      enviarPosicion(pos.coords.latitude, pos.coords.longitude);
+      watchId = navigator.geolocation.watchPosition(
+        p => enviarPosicion(p.coords.latitude, p.coords.longitude),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+      );
+      gpsInterval = setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+          p => enviarPosicion(p.coords.latitude, p.coords.longitude), () => {},
+          { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+        );
+      }, 30000);
+    },
+    err => {
+      btn.textContent = '📍 Activar GPS';
+      btn.className = 'off';
+      let msg = 'No se pudo obtener GPS';
+      if (err.code === 1) msg = 'Permiso de ubicación denegado';
+      else if (err.code === 3) msg = 'Tiempo agotado — reintentá';
+      showToast(msg, 'error');
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function detenerGPS() {
+  gpsActivo = false;
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (gpsInterval) { clearInterval(gpsInterval); gpsInterval = null; }
+  const btn = document.getElementById('gpsBtn');
+  btn.textContent = '📍 Activar GPS';
+  btn.className = 'off';
+  document.getElementById('gpsStatus').textContent = 'GPS inactivo';
+  fetch(SUPABASE_URL + '/rest/v1/camioneta?repartidor=eq.' + encodeURIComponent(repartidorNombre), {
+    method: 'PATCH',
+    headers: {
+      'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify({ activo: false })
+  }).catch(() => {});
+}
+
+async function enviarPosicion(lat, lng) {
+  try {
+    const resp = await fetch(SUPABASE_URL + '/rest/v1/camioneta', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({
+        repartidor: repartidorNombre, lat, lng, activo: true,
+        updated_at: new Date().toISOString()
+      })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    document.getElementById('gpsStatus').textContent =
+      'GPS activo — ' + new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    document.getElementById('gpsStatus').textContent = 'Error enviando posición';
+  }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (gpsActivo) detenerGPS();
+});
+
+async function loadPedidos() {
+  document.getElementById('listContainer').innerHTML =
+    '<div class="loading-spinner"><div class="spinner"></div> Cargando pedidos...</div>';
+  try {
+    const resPend = await fetch(
+      SUPABASE_URL + '/rest/v1/pedidos?or=(entregado.eq.,entregado.is.null)&order=fecha.desc,cliente.asc&limit=500',
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
+    );
+    pedidosPendientes = await resPend.json();
+    const hoy = new Date().toISOString().slice(0, 10);
+    const resEntr = await fetch(
+      SUPABASE_URL + '/rest/v1/pedidos?fecha=eq.' + hoy + '&entregado=eq.SI&order=cliente.asc&limit=500',
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
+    );
+    pedidosEntregados = await resEntr.json();
+    renderTab();
+  } catch (e) {
+    document.getElementById('listContainer').innerHTML =
+      '<div class="empty-state"><div class="icon">⚠️</div><p>Error cargando pedidos.<br>Verificá tu conexión.</p></div>';
+  }
+}
+
+function formatNombre(cliente) {
+  return (cliente || '').replace(/\s*[Nn][°º]\s*\d+\s*$/, '').trim();
+}
+function formatMonto(v) {
+  return '$' + Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function formatFecha(f) {
+  if (!f) return '';
+  const [y, m, d] = f.split('-');
+  return d + '/' + m + '/' + y;
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  renderTab();
+}
+
+function renderTab() {
+  const bar = document.getElementById('summaryBar');
+  const container = document.getElementById('listContainer');
+  if (currentTab === 'pendientes') {
+    const lista = pedidosPendientes;
+    if (!lista.length) {
+      bar.style.display = 'none';
+      container.innerHTML = '<div class="empty-state"><div class="icon">🎉</div><p>¡No hay pedidos pendientes!<br>Todo entregado.</p></div>';
+      return;
+    }
+    const totalMonto = lista.reduce((s, p) => s + Number(p.monto || 0), 0);
+    bar.style.display = 'flex';
+    bar.innerHTML = `<div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Pendientes</div></div><div class="summary-item"><div class="val">${formatMonto(totalMonto)}</div><div class="lbl">Total a cobrar</div></div>`;
+    container.innerHTML = lista.map(p => `<div class="pedido-card pendiente"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}${p.obs ? '<span>📝 ' + p.obs + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="pago-detalle">${Number(p.efectivo) > 0 ? '<span>💵 Efec. ' + formatMonto(p.efectivo) + '</span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transf. ' + formatMonto(p.transferencia) + '</span>' : ''}${!Number(p.efectivo) && !Number(p.transferencia) ? '<span style="color:#d97706">⚠️ Sin pago registrado aún</span>' : ''}</div><button class="btn-entregar" onclick="abrirModal(${p.id})">📦 Registrar entrega</button></div>`).join('');
+  } else {
+    const lista = pedidosEntregados;
+    if (!lista.length) {
+      bar.style.display = 'none';
+      container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>Aún no entregaste pedidos hoy.</p></div>';
+      return;
+    }
+    const totalEfectivo = lista.reduce((s, p) => s + Number(p.efectivo || 0), 0);
+    const totalTransf = lista.reduce((s, p) => s + Number(p.transferencia || 0), 0);
+    const totalCobrado = totalEfectivo + totalTransf;
+    bar.style.display = 'flex';
+    bar.innerHTML = `<div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Entregados hoy</div></div><div class="summary-item"><div class="val">${formatMonto(totalCobrado)}</div><div class="lbl">Total cobrado</div></div><div class="summary-item"><div class="val">${formatMonto(totalEfectivo)}</div><div class="lbl">Efectivo</div></div><div class="summary-item"><div class="val">${formatMonto(totalTransf)}</div><div class="lbl">Transferencia</div></div>`;
+    container.innerHTML = lista.map(p => `<div class="pedido-card entregado"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="cobro-info">${Number(p.efectivo) > 0 ? '<span>💵 Efectivo: <b>' + formatMonto(p.efectivo) + '</b></span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transferencia: <b>' + formatMonto(p.transferencia) + '</b></span>' : ''}</div><div style="margin-top:10px"><span class="entregado-badge">✅ Entregado</span></div>${p.obs ? '<div style="margin-top:8px;font-size:12px;color:#6b7280;">📝 ' + p.obs + '</div>' : ''}</div>`).join('');
+  }
+}
+
+function abrirModal(id) {
+  pedidoActual = pedidosPendientes.find(p => p.id === id);
+  if (!pedidoActual) return;
+  document.getElementById('modalCliente').textContent = formatNombre(pedidoActual.cliente) + ' — ' + formatFecha(pedidoActual.fecha);
+  document.getElementById('modalMonto').textContent = formatMonto(pedidoActual.monto);
+  document.getElementById('inputEfectivo').value = Number(pedidoActual.efectivo) > 0 ? pedidoActual.efectivo : '';
+  document.getElementById('inputTransferencia').value = Number(pedidoActual.transferencia) > 0 ? pedidoActual.transferencia : '';
+  document.getElementById('inputObs').value = pedidoActual.obs || '';
+  document.getElementById('cobroRestante').style.display = 'none';
+  document.getElementById('cobroCompleto').style.display = 'none';
+  actualizarCobro();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(e) { if (e.target === document.getElementById('modalOverlay')) closeModalBtn(); }
+function closeModalBtn() { document.getElementById('modalOverlay').classList.remove('open'); pedidoActual = null; }
+
+function actualizarCobro() {
+  if (!pedidoActual) return;
+  const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
+  const tr = parseFloat(document.getElementById('inputTransferencia').value) || 0;
+  const total = Number(pedidoActual.monto);
+  const cobrado = ef + tr;
+  const restante = total - cobrado;
+  const divRest = document.getElementById('cobroRestante');
+  const divComp = document.getElementById('cobroCompleto');
+  if (cobrado <= 0) { divRest.style.display = 'none'; divComp.style.display = 'none'; return; }
+  if (restante > 0.01) {
+    divComp.style.display = 'none'; divRest.style.display = 'block';
+    divRest.textContent = '⚠️ Falta cobrar: ' + formatMonto(restante);
+  } else if (restante < -0.01) {
+    divRest.style.display = 'none'; divComp.style.display = 'block';
+    divComp.style.background = '#fee2e2'; divComp.style.color = '#991b1b';
+    divComp.textContent = '⚠️ Cobrado de más: ' + formatMonto(Math.abs(restante));
+  } else {
+    divRest.style.display = 'none'; divComp.style.display = 'block';
+    divComp.style.background = '#d1fae5'; divComp.style.color = '#065f46';
+    divComp.textContent = '✅ Cobro completo';
+  }
+}
+
+async function confirmarEntrega() {
+  if (!pedidoActual) return;
+  const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
+  const tr = parseFloat(document.getElementById('inputTransferencia').value) || 0;
+  const obs = document.getElementById('inputObs').value.trim();
+  const total = Number(pedidoActual.monto);
+  const cobrado = ef + tr;
+  const pagado = cobrado >= total * 0.99 ? 'SI' : '';
+  const btn = document.getElementById('btnConfirmar');
+  btn.textContent = '⏳ Guardando...'; btn.disabled = true;
+  try {
+    const resp = await fetch(SUPABASE_URL + '/rest/v1/pedidos?id=eq.' + pedidoActual.id, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ entregado: 'SI', efectivo: ef, transferencia: tr, pagado: pagado, obs: obs || pedidoActual.obs || '' })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    closeModalBtn();
+    showToast('✅ Entrega registrada — ' + formatNombre(pedidoActual.cliente), 'success');
+    const idx = pedidosPendientes.findIndex(p => p.id === pedidoActual.id);
+    if (idx !== -1) {
+      const moved = { ...pedidosPendientes[idx], entregado: 'SI', efectivo: ef, transferencia: tr, pagado, obs: obs || pedidoActual.obs || '' };
+      pedidosPendientes.splice(idx, 1);
+      const hoy = new Date().toISOString().slice(0, 10);
+      if (moved.fecha === hoy) pedidosEntregados.unshift(moved);
+    }
+    renderTab();
+  } catch (e) {
+    showToast('Error al guardar: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '✅ Confirmar Entrega'; btn.disabled = false;
+  }
+}
+
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = ''; }, 3000);
+}
+</script>
+</body>
+</html>
