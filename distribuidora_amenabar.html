@@ -825,10 +825,26 @@ function renderPedidos() {
     <td>${p.fecha}</td><td>${p.cliente}</td><td>${fmt(p.monto)}</td>
     <td><span class="badge badge-${p.pagado==='Si'?'green':'red'}">${p.pagado==='Si'?'Pagado':'Pendiente'}</span></td>
     <td>${fmt(p.efectivo)}</td><td>${fmt(p.transferencia)}</td>
-    <td><span class="badge badge-${p.entregado==='Si'?'green':'yellow'}">${p.entregado==='Si'?'Entregado':'Pendiente'}</span></td>
+    <td><span class="badge badge-${(p.entregado==='Si'||p.entregado==='SI')?'green':'yellow'}">${(p.entregado==='Si'||p.entregado==='SI')?'Entregado':'Pendiente'}</span>${(p.entregado==='Si'||p.entregado==='SI')?'<button onclick="revertirPedidoAdmin('+p.id+')" style="margin-left:6px;background:none;border:1px solid #d97706;color:#d97706;border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer">↩ Revertir</button>':''}</td>
     <td>${p.vendedor}</td><td style="color:#9ca3af">${p.obs}</td>
   </tr>`).join('')||'<tr><td colspan="9" class="empty-state">Sin resultados</td></tr>';
   renderPag('ped-pag',filteredPedidos.length,'pedidos');
+}
+
+async function revertirPedidoAdmin(id) {
+  if (!confirm('¿Revertir entrega? El pedido quedará como Pendiente.')) return;
+  try {
+    const sb = getSB();
+    const { error } = await sb.from('pedidos').update({ entregado: '', pagado: '', efectivo: 0, transferencia: 0 }).eq('id', id);
+    if (error) throw error;
+    const p = pedidos.find(x => x.id === id);
+    if (p) { p.entregado = ''; p.pagado = ''; p.efectivo = 0; p.transferencia = 0; }
+    filterPedidos();
+    renderDashboard();
+    alert('↩ Entrega revertida');
+  } catch (e) {
+    alert('Error: ' + (e.message || e));
+  }
 }
 
 // CLIENTES
