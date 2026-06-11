@@ -323,7 +323,7 @@ function iniciarGPS() {
       btn.textContent = '📍 Activar GPS';
       btn.className = 'off';
       let msg = 'No se pudo obtener GPS';
-      if (err.code === 1) msg = 'Permiso de ubicación denegado';
+      if (err.code === 1) msg = 'Permiso denegado — tocá el 🔒 en la barra de dirección → Permisos → activá Ubicación, y recargá';
       else if (err.code === 3) msg = 'Tiempo agotado — reintentá';
       showToast(msg, 'error');
     },
