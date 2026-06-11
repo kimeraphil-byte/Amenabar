@@ -50,14 +50,15 @@
     #gpsBtn.off { background: rgba(255,255,255,0.2); color: #fff; }
     #gpsBtn.on  { background: #10b981; color: #fff; animation: pulse 2s infinite; }
     @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-    #capturaBtn {
-      margin-top: 10px; width: 100%; padding: 8px 14px; border: 1.5px solid rgba(255,255,255,0.4);
-      border-radius: 10px; background: rgba(255,255,255,0.1); color: #fff;
-      font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
+    .btn-captura-gps {
+      width: 100%; padding: 11px 14px; border: 1.5px solid #1e3a5f; border-radius: 10px;
+      background: #eef2ff; color: #1e3a5f; font-size: 13px; font-weight: 700;
+      cursor: pointer; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    #capturaBtn:active { background: rgba(255,255,255,0.25); }
-    #capturaBtn:disabled { opacity: 0.5; cursor: not-allowed; } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
+    .btn-captura-gps:disabled { opacity: 0.5; cursor: not-allowed; }
+    .gps-modal-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
+    .gps-modal-badge.none { background: #f3f4f6; color: #9ca3af; }
+    .gps-modal-badge.ok { background: #d1fae5; color: #065f46; } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
 
     /* TABS */
     #tabBar {
@@ -220,7 +221,6 @@
         <div class="subtitle" id="gpsStatus">GPS inactivo</div>
       </div>
       <button id="gpsBtn" class="off" onclick="toggleGPS()">📍 Activar GPS</button>
-    <button id="capturaBtn" onclick="capturarUbicacion()">📍 Capturar ubicación ahora</button>
     </div>
   </div>
 
@@ -260,6 +260,8 @@
       <label>📝 Observaciones (opcional)</label>
       <textarea id="inputObs" placeholder="Ej: cliente pidió factura, no había nadie..."></textarea>
     </div>
+    <button class="btn-captura-gps" id="btnCapturarGps" onclick="capturarUbicacionModal()">📍 Capturar ubicación del cliente</button>
+    <div id="gpsModalBadge" class="gps-modal-badge none">Sin ubicación guardada</div>
     <button id="btnConfirmar" onclick="confirmarEntrega()">✅ Confirmar Entrega</button>
     <button id="btnCancelar" onclick="closeModalBtn()">Cancelar</button>
   </div>
@@ -272,6 +274,7 @@ const SUPABASE_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
 
 let repartidorNombre = '';
+let ubicacionEntrega = null;
 let gpsActivo = false;
 let watchId = null;
 let gpsInterval = null;
@@ -473,32 +476,15 @@ function abrirModal(id) {
   document.getElementById('modalOverlay').classList.add('open');
 }
 function closeModal(e) { if (e.target === document.getElementById('modalOverlay')) closeModalBtn(); }
-function closeModalBtn() { document.getElementById('modalOverlay').classList.remove('open'); pedidoActual = null; }
-
-function actualizarCobro() {
-  if (!pedidoActual) return;
-  const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
-  const tr = parseFloat(document.getElementById('inputTransferencia').value) || 0;
-  const total = Number(pedidoActual.monto);
-  const cobrado = ef + tr;
-  const restante = total - cobrado;
-  const divRest = document.getElementById('cobroRestante');
-  const divComp = document.getElementById('cobroCompleto');
-  if (cobrado <= 0) { divRest.style.display = 'none'; divComp.style.display = 'none'; return; }
-  if (restante > 0.01) {
-    divComp.style.display = 'none'; divRest.style.display = 'block';
-    divRest.textContent = '⚠️ Falta cobrar: ' + formatMonto(restante);
-  } else if (restante < -0.01) {
-    divRest.style.display = 'none'; divComp.style.display = 'block';
-    divComp.style.background = '#fee2e2'; divComp.style.color = '#991b1b';
-    divComp.textContent = '⚠️ Cobrado de más: ' + formatMonto(Math.abs(restante));
-  } else {
-    divRest.style.display = 'none'; divComp.style.display = 'block';
-    divComp.style.background = '#d1fae5'; divComp.style.color = '#065f46';
-    divComp.textContent = '✅ Cobro completo';
-  }
+function closeModalBtn() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  pedidoActual = null;
+  ubicacionEntrega = null;
+  const btn = document.getElementById('btnCapturarGps');
+  const badge = document.getElementById('gpsModalBadge');
+  if (btn) { btn.textContent = '📍 Capturar ubicación del cliente'; btn.disabled = false; }
+  if (badge) { badge.className = 'gps-modal-badge none'; badge.textContent = 'Sin ubicación guardada'; }
 }
-
 async function confirmarEntrega() {
   if (!pedidoActual) return;
   const ef = parseFloat(document.getElementById('inputEfectivo').value) || 0;
@@ -518,8 +504,10 @@ async function confirmarEntrega() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     // Guardar referencia antes de cerrar (closeModalBtn pone pedidoActual = null)
     const pedidoCerrado = pedidoActual;
+    const ubic = ubicacionEntrega;
     closeModalBtn();
-    showToast('✅ Entrega registrada — ' + formatNombre(pedidoCerrado.cliente), 'success');
+    if (ubic) saveClienteUbicacion(formatNombre(pedidoCerrado.cliente), ubic.lat, ubic.lng);
+    showToast('✅ Entrega registrada' + (ubic ? ' + ubicación guardada' : '') + ' — ' + formatNombre(pedidoCerrado.cliente), 'success');
     // Mover a entregados localmente
     const idx = pedidosPendientes.findIndex(p => p.id === pedidoCerrado.id);
     if (idx !== -1) {
@@ -565,36 +553,49 @@ async function revertirEntrega(id) {
   }
 }
 
-// ─── CAPTURA ÚNICA DE POSICIÓN ─────────────────────────────────────────────
-function capturarUbicacion() {
-  if (!navigator.geolocation) {
-    showToast('GPS no disponible en este dispositivo', 'error'); return;
-  }
-  const btn = document.getElementById('capturaBtn');
+// ─── CAPTURA UBICACIÓN AL ENTREGAR ──────────────────────────────────────────
+function capturarUbicacionModal() {
+  if (!navigator.geolocation) { showToast('GPS no disponible', 'error'); return; }
+  const btn = document.getElementById('btnCapturarGps');
+  const badge = document.getElementById('gpsModalBadge');
   btn.disabled = true;
   btn.textContent = '⏳ Obteniendo posición...';
   navigator.geolocation.getCurrentPosition(
-    async pos => {
-      await enviarPosicion(pos.coords.latitude, pos.coords.longitude);
+    pos => {
+      ubicacionEntrega = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       const acc = Math.round(pos.coords.accuracy);
-      showToast('📍 Posición enviada ±' + acc + 'm', 'success');
-      btn.textContent = '✅ Posición enviada';
-      setTimeout(() => {
-        btn.textContent = '📍 Capturar ubicación ahora';
-        btn.disabled = false;
-      }, 3000);
+      badge.className = 'gps-modal-badge ok';
+      badge.textContent = '📍 Ubicación capturada ±' + acc + 'm';
+      btn.textContent = '🔄 Actualizar ubicación';
+      btn.disabled = false;
     },
     err => {
-      let msg = 'No se pudo obtener GPS';
-      if (err.code === 1) msg = 'Permiso de ubicación denegado';
-      else if (err.code === 2) msg = 'GPS no disponible';
-      else if (err.code === 3) msg = 'Tiempo de espera agotado';
-      showToast(msg, 'error');
-      btn.textContent = '📍 Capturar ubicación ahora';
+      const msg = err.code === 1 ? 'Permiso denegado' : err.code === 2 ? 'GPS no disponible' : 'Tiempo de espera agotado';
+      showToast('GPS: ' + msg, 'error');
+      btn.textContent = '📍 Capturar ubicación del cliente';
       btn.disabled = false;
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
+}
+
+async function saveClienteUbicacion(nombre, lat, lng) {
+  try {
+    const resp = await fetch(
+      SUPABASE_URL + '/rest/v1/clientes?nombre=eq.' + encodeURIComponent(nombre),
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ lat, lng })
+      }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  } catch(e) {
+    console.warn('No se pudo guardar ubicación del cliente:', e.message);
+  }
 }
 
 function showToast(msg, type = '') {
