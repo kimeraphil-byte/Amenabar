@@ -432,12 +432,16 @@ function renderCatalog(products) {
             <div class="product-meta">${p.uxb > 1 ? `Bulto x${p.uxb} unid.` : 'Por unidad'}</div>
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-            <div class="product-price">${formatMoney(p.costo_distri)}</div>
+            <div>
+              <div class="product-price">${formatMoney(p.costo_distri)}<span style="font-size:11px;font-weight:400;color:#6b7280;margin-left:2px">c/u</span></div>
+              ${p.uxb > 1 ? `<div style="font-size:11px;color:#2563eb;text-align:right;font-weight:600">${formatMoney(p.costo_distri * p.uxb)}/bulto</div>` : ''}
+            </div>
             <div class="qty-control">
               <button class="qty-btn minus" onclick="changeQty(${p.id}, -1)" ${qty === 0 ? 'style="visibility:hidden"' : ''}>−</button>
               <span class="qty-val" id="qty-${p.id}">${qty > 0 ? qty : ''}</span>
               <button class="qty-btn plus" onclick="changeQty(${p.id}, 1)">+</button>
             </div>
+            <div style="font-size:11px;color:#6b7280;min-height:14px" id="unid-${p.id}">${qty > 0 ? (qty * (p.uxb||1)) + ' unid.' : ''}</div>
           </div>
         </div>`;
     });
@@ -465,10 +469,12 @@ function changeQty(productId, delta) {
   // Update card UI
   const qtyEl = document.getElementById('qty-' + productId);
   const card = document.getElementById('pcard-' + productId);
+  const unidEl = document.getElementById('unid-' + productId);
+  const p = allProducts.find(p => p.id == productId);
   if (qtyEl) qtyEl.textContent = next > 0 ? next : '';
+  if (unidEl && p) unidEl.textContent = next > 0 ? (next * (p.uxb || 1)) + ' unid.' : '';
   if (card) {
     card.classList.toggle('in-cart', next > 0);
-    // Toggle minus visibility
     const minus = card.querySelector('.qty-btn.minus');
     if (minus) minus.style.visibility = next === 0 ? 'hidden' : 'visible';
   }
@@ -480,7 +486,7 @@ function cartCount() { return Object.values(cart).reduce((s, v) => s + v, 0); }
 function cartTotal() {
   return Object.entries(cart).reduce((sum, [id, qty]) => {
     const p = allProducts.find(p => p.id == id);
-    return sum + (p ? p.costo_distri * qty : 0);
+    return sum + (p ? p.costo_distri * (p.uxb || 1) * qty : 0);
   }, 0);
 }
 
@@ -496,7 +502,7 @@ function updateCartBar() {
     btn.style.display = 'flex';
     countEl.style.display = 'flex';
     countEl.textContent = count;
-    document.getElementById('cart-items-label').textContent = `${count} producto${count > 1 ? 's' : ''}`;
+    document.getElementById('cart-items-label').textContent = `${count} bulto${count > 1 ? 's' : ''}`;
     document.getElementById('cart-total-label').textContent = formatMoney(total);
   } else {
     panel.classList.remove('visible');
@@ -511,9 +517,13 @@ function buildOrderReview() {
   const items = cartItems();
   let html = '';
   items.forEach(item => {
+    const unidades = item.qty * (item.uxb || 1);
+    const qtyLabel = item.uxb > 1
+      ? `${item.qty} bulto${item.qty > 1 ? 's' : ''} · ${unidades} unid.`
+      : `${item.qty} unid.`;
     html += `<div class="order-item">
       <div class="item-name">${item.descripcion}</div>
-      <div class="item-qty">x${item.qty}</div>
+      <div class="item-qty">${qtyLabel}</div>
       <div class="item-subtotal">${formatMoney(item.subtotal)}</div>
     </div>`;
   });
@@ -524,7 +534,8 @@ function buildOrderReview() {
 function cartItems() {
   return Object.entries(cart).map(([id, qty]) => {
     const p = allProducts.find(p => p.id == id);
-    return { ...p, qty, subtotal: p.costo_distri * qty };
+    const uxb = p.uxb || 1;
+    return { ...p, qty, unidades: qty * uxb, subtotal: p.costo_distri * uxb * qty };
   });
 }
 
@@ -566,7 +577,7 @@ async function confirmarPedido() {
     entregado: '',
     vendedor: 'CLIENTE WEB',
     obs: obsCompleto,
-    items: JSON.stringify(items.map(i => ({ id: i.id, descripcion: i.descripcion, qty: i.qty, precio: i.costo_distri, subtotal: i.subtotal, uxb: i.uxb || 1 }))),
+    items: JSON.stringify(items.map(i => ({ id: i.id, descripcion: i.descripcion, qty: i.qty, unidades: i.unidades, precio: i.costo_distri, subtotal: i.subtotal, uxb: i.uxb || 1 }))),
     created_at: new Date().toISOString()
   };
 
@@ -595,9 +606,12 @@ function showSuccess(orderId, items) {
   document.getElementById('order-ref-num').textContent = '#' + (orderId || '---');
   let html = '';
   items.forEach(i => {
+    const qtyLabel = i.uxb > 1
+      ? `${i.qty} bulto${i.qty > 1 ? 's' : ''} · ${i.unidades} unid.`
+      : `${i.qty} unid.`;
     html += `<div class="order-item">
       <div class="item-name">${i.descripcion}</div>
-      <div class="item-qty">x${i.qty}</div>
+      <div class="item-qty">${qtyLabel}</div>
       <div class="item-subtotal">${formatMoney(i.subtotal)}</div>
     </div>`;
   });
