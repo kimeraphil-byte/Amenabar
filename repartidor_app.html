@@ -8,6 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Repartidor">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#1e3a5f">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -49,7 +50,7 @@
     }
     #gpsBtn.off { background: rgba(255,255,255,0.2); color: #fff; }
     #gpsBtn.on  { background: #10b981; color: #fff; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
     .btn-captura-gps {
       width: 100%; padding: 11px 14px; border: 1.5px solid #1e3a5f; border-radius: 10px;
       background: #eef2ff; color: #1e3a5f; font-size: 13px; font-weight: 700;
@@ -58,7 +59,7 @@
     .btn-captura-gps:disabled { opacity: 0.5; cursor: not-allowed; }
     .gps-modal-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
     .gps-modal-badge.none { background: #f3f4f6; color: #9ca3af; }
-    .gps-modal-badge.ok { background: #d1fae5; color: #065f46; } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); } }
+    .gps-modal-badge.ok { background: #d1fae5; color: #065f46; }
 
     /* TABS */
     #tabBar {
@@ -199,6 +200,37 @@
       border-top-color: #1e3a5f; border-radius: 50%; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* RUTA */
+    .ruta-item {
+      background: #fff; border-radius: 14px; padding: 14px 16px;
+      margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .ruta-num {
+      width: 30px; height: 30px; border-radius: 50%; background: #1e3a5f;
+      color: #fff; font-size: 13px; font-weight: 700; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .ruta-num.sin-coord { background: #d1d5db; color: #6b7280; }
+    .ruta-info { flex: 1; min-width: 0; }
+    .ruta-info .nombre { font-size: 15px; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ruta-info .dist { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .ruta-info .sin-gps { font-size: 11px; color: #f59e0b; margin-top: 2px; }
+    .ruta-info .monto-r { font-size: 13px; font-weight: 700; color: #1e3a5f; margin-top: 2px; }
+    .btn-abrir-mapa {
+      width: 100%; padding: 14px; border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700; cursor: pointer;
+      background: #10b981; color: #fff; margin-bottom: 12px;
+    }
+    .btn-recalcular {
+      width: 100%; padding: 11px; border: 1.5px solid #1e3a5f; border-radius: 12px;
+      font-size: 14px; font-weight: 600; cursor: pointer; background: #eef2ff; color: #1e3a5f; margin-bottom: 14px;
+    }
+    .ruta-warning {
+      background: #fef3c7; border-radius: 10px; padding: 10px 14px;
+      font-size: 13px; color: #92400e; margin-bottom: 12px;
+    }
   </style>
 </head>
 <body>
@@ -226,7 +258,8 @@
 
   <div id="tabBar">
     <button class="tab-btn active" onclick="switchTab('pendientes')" id="tabPendientes">📦 Pendientes</button>
-    <button class="tab-btn" onclick="switchTab('entregados')" id="tabEntregados">✅ Entregados hoy</button>
+    <button class="tab-btn" onclick="switchTab('entregados')" id="tabEntregados">✅ Entregados</button>
+    <button class="tab-btn" onclick="switchTab('ruta')" id="tabRuta">🗺️ Ruta</button>
   </div>
 
   <div id="appContent">
@@ -274,11 +307,13 @@ const SUPABASE_URL = 'https://oheemnucxaznkqoedijk.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZWVtbnVjeGF6bmtxb2VkaWprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTkwOTIsImV4cCI6MjA5NjUzNTA5Mn0.2EUMQgwhzj9E031yw4-1k9VOpfSmOkP_1TJ1-rpPS80';
 
 let repartidorNombre = '';
-let ubicacionEntrega = null;
 let gpsActivo = false;
+let ubicacionEntrega = null;
 let watchId = null;
 let gpsInterval = null;
 let currentTab = 'pendientes';
+let currentPos = null;
+let clientesMap = {};
 let pedidosPendientes = [];
 let pedidosEntregados = [];
 let pedidoActual = null;
@@ -340,8 +375,10 @@ function iniciarGPS() {
       btn.textContent = '📍 Activar GPS';
       btn.className = 'off';
       let msg = 'No se pudo obtener GPS';
-      if (err.code === 1) msg = 'Permiso denegado — tocá el 🔒 en la barra de dirección → Permisos → activá Ubicación, y recargá';
-      else if (err.code === 3) msg = 'Tiempo agotado — reintentá';
+      if (err.code === 1) msg = 'Error ' + err.code + ' (permiso denegado) — ' + err.message;
+      else if (err.code === 2) msg = 'Error ' + err.code + ' (GPS no disponible) — ' + err.message;
+      else if (err.code === 3) msg = 'Error ' + err.code + ' (timeout) — ' + err.message;
+      else msg = 'Error ' + err.code + ': ' + err.message;
       showToast(msg, 'error');
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -356,6 +393,7 @@ function detenerGPS() {
   btn.textContent = '📍 Activar GPS';
   btn.className = 'off';
   document.getElementById('gpsStatus').textContent = 'GPS inactivo';
+  // Marcar inactivo en Supabase
   fetch(SUPABASE_URL + '/rest/v1/camioneta?repartidor=eq.' + encodeURIComponent(repartidorNombre), {
     method: 'PATCH',
     headers: {
@@ -391,21 +429,25 @@ window.addEventListener('beforeunload', () => {
   if (gpsActivo) detenerGPS();
 });
 
+// ─── PEDIDOS ─────────────────────────────────────────────────────────────────
 async function loadPedidos() {
   document.getElementById('listContainer').innerHTML =
     '<div class="loading-spinner"><div class="spinner"></div> Cargando pedidos...</div>';
   try {
+    // Pendientes: entregado vacío o null
     const resPend = await fetch(
       SUPABASE_URL + '/rest/v1/pedidos?or=(entregado.eq.,entregado.is.null)&order=fecha.desc,cliente.asc&limit=500',
       { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
     );
     pedidosPendientes = await resPend.json();
-    const hoy = new Date().toISOString().slice(0, 10);
+
+    // Entregados (todos los marcados SI, independiente de la fecha del pedido)
     const resEntr = await fetch(
       SUPABASE_URL + '/rest/v1/pedidos?entregado=eq.SI&order=cliente.asc&limit=500',
       { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
     );
     pedidosEntregados = await resEntr.json();
+
     renderTab();
   } catch (e) {
     document.getElementById('listContainer').innerHTML =
@@ -416,15 +458,18 @@ async function loadPedidos() {
 function formatNombre(cliente) {
   return (cliente || '').replace(/\s*[Nn][°º]\s*\d+\s*$/, '').trim();
 }
+
 function formatMonto(v) {
   return '$' + Number(v || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 function formatFecha(f) {
   if (!f) return '';
   const [y, m, d] = f.split('-');
   return d + '/' + m + '/' + y;
 }
 
+// ─── TABS ────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -435,6 +480,13 @@ function switchTab(tab) {
 function renderTab() {
   const bar = document.getElementById('summaryBar');
   const container = document.getElementById('listContainer');
+
+  if (currentTab === 'ruta') {
+    bar.style.display = 'none';
+    renderRuta();
+    return;
+  }
+
   if (currentTab === 'pendientes') {
     const lista = pedidosPendientes;
     if (!lista.length) {
@@ -444,8 +496,28 @@ function renderTab() {
     }
     const totalMonto = lista.reduce((s, p) => s + Number(p.monto || 0), 0);
     bar.style.display = 'flex';
-    bar.innerHTML = `<div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Pendientes</div></div><div class="summary-item"><div class="val">${formatMonto(totalMonto)}</div><div class="lbl">Total a cobrar</div></div>`;
-    container.innerHTML = lista.map(p => `<div class="pedido-card pendiente"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}${p.obs ? '<span>📝 ' + p.obs + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="pago-detalle">${Number(p.efectivo) > 0 ? '<span>💵 Efec. ' + formatMonto(p.efectivo) + '</span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transf. ' + formatMonto(p.transferencia) + '</span>' : ''}${!Number(p.efectivo) && !Number(p.transferencia) ? '<span style="color:#d97706">⚠️ Sin pago registrado aún</span>' : ''}</div><button class="btn-entregar" onclick="abrirModal(${p.id})">📦 Registrar entrega</button></div>`).join('');
+    bar.innerHTML = `
+      <div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Pendientes</div></div>
+      <div class="summary-item"><div class="val">${formatMonto(totalMonto)}</div><div class="lbl">Total a cobrar</div></div>
+    `;
+    container.innerHTML = lista.map(p => `
+      <div class="pedido-card pendiente">
+        <div class="cliente">${formatNombre(p.cliente)}</div>
+        <div class="meta">
+          <span>📅 ${formatFecha(p.fecha)}</span>
+          ${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}
+          ${p.obs ? '<span>📝 ' + p.obs + '</span>' : ''}
+        </div>
+        <div class="monto">${formatMonto(p.monto)}</div>
+        <div class="pago-detalle">
+          ${Number(p.efectivo) > 0 ? '<span>💵 Efec. ' + formatMonto(p.efectivo) + '</span>' : ''}
+          ${Number(p.transferencia) > 0 ? '<span>📱 Transf. ' + formatMonto(p.transferencia) + '</span>' : ''}
+          ${!Number(p.efectivo) && !Number(p.transferencia) ? '<span style="color:#d97706">⚠️ Sin pago registrado aún</span>' : ''}
+        </div>
+        <button class="btn-entregar" onclick="abrirModal(${p.id})">📦 Registrar entrega</button>
+      </div>
+    `).join('');
+
   } else {
     const lista = pedidosEntregados;
     if (!lista.length) {
@@ -457,16 +529,42 @@ function renderTab() {
     const totalTransf = lista.reduce((s, p) => s + Number(p.transferencia || 0), 0);
     const totalCobrado = totalEfectivo + totalTransf;
     bar.style.display = 'flex';
-    bar.innerHTML = `<div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Entregados hoy</div></div><div class="summary-item"><div class="val">${formatMonto(totalCobrado)}</div><div class="lbl">Total cobrado</div></div><div class="summary-item"><div class="val">${formatMonto(totalEfectivo)}</div><div class="lbl">Efectivo</div></div><div class="summary-item"><div class="val">${formatMonto(totalTransf)}</div><div class="lbl">Transferencia</div></div>`;
-    container.innerHTML = lista.map(p => `<div class="pedido-card entregado"><div class="cliente">${formatNombre(p.cliente)}</div><div class="meta"><span>📅 ${formatFecha(p.fecha)}</span>${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}</div><div class="monto">${formatMonto(p.monto)}</div><div class="cobro-info">${Number(p.efectivo) > 0 ? '<span>💵 Efectivo: <b>' + formatMonto(p.efectivo) + '</b></span>' : ''}${Number(p.transferencia) > 0 ? '<span>📱 Transferencia: <b>' + formatMonto(p.transferencia) + '</b></span>' : ''}</div><div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="entregado-badge">✅ Entregado</span><button onclick="revertirEntrega(${p.id})" style="background:none;border:1px solid #d97706;color:#d97706;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer">↩ Revertir</button></div>${p.obs ? '<div style="margin-top:8px;font-size:12px;color:#6b7280;">📝 ' + p.obs + '</div>' : ''}</div>`).join('');
+    bar.innerHTML = `
+      <div class="summary-item"><div class="val">${lista.length}</div><div class="lbl">Entregados hoy</div></div>
+      <div class="summary-item"><div class="val">${formatMonto(totalCobrado)}</div><div class="lbl">Total cobrado</div></div>
+      <div class="summary-item"><div class="val">${formatMonto(totalEfectivo)}</div><div class="lbl">Efectivo</div></div>
+      <div class="summary-item"><div class="val">${formatMonto(totalTransf)}</div><div class="lbl">Transferencia</div></div>
+    `;
+    container.innerHTML = lista.map(p => `
+      <div class="pedido-card entregado">
+        <div class="cliente">${formatNombre(p.cliente)}</div>
+        <div class="meta">
+          <span>📅 ${formatFecha(p.fecha)}</span>
+          ${p.vendedor ? '<span>👤 ' + p.vendedor + '</span>' : ''}
+        </div>
+        <div class="monto">${formatMonto(p.monto)}</div>
+        <div class="cobro-info">
+          ${Number(p.efectivo) > 0 ? '<span>💵 Efectivo: <b>' + formatMonto(p.efectivo) + '</b></span>' : ''}
+          ${Number(p.transferencia) > 0 ? '<span>📱 Transferencia: <b>' + formatMonto(p.transferencia) + '</b></span>' : ''}
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="entregado-badge">✅ Entregado</span>
+          <button onclick="revertirEntrega(${p.id})" style="background:none;border:1px solid #d97706;color:#d97706;border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer">↩ Revertir</button>
+        </div>
+        ${p.obs ? '<div style="margin-top:8px;font-size:12px;color:#6b7280;">📝 ' + p.obs + '</div>' : ''}
+      </div>
+    `).join('');
   }
 }
 
+// ─── MODAL ───────────────────────────────────────────────────────────────────
 function abrirModal(id) {
   pedidoActual = pedidosPendientes.find(p => p.id === id);
   if (!pedidoActual) return;
-  document.getElementById('modalCliente').textContent = formatNombre(pedidoActual.cliente) + ' — ' + formatFecha(pedidoActual.fecha);
+  document.getElementById('modalCliente').textContent =
+    formatNombre(pedidoActual.cliente) + ' — ' + formatFecha(pedidoActual.fecha);
   document.getElementById('modalMonto').textContent = formatMonto(pedidoActual.monto);
+  // Prellenar con montos del pedido si los tiene
   document.getElementById('inputEfectivo').value = Number(pedidoActual.efectivo) > 0 ? pedidoActual.efectivo : '';
   document.getElementById('inputTransferencia').value = Number(pedidoActual.transferencia) > 0 ? pedidoActual.transferencia : '';
   document.getElementById('inputObs').value = pedidoActual.obs || '';
@@ -475,7 +573,10 @@ function abrirModal(id) {
   actualizarCobro();
   document.getElementById('modalOverlay').classList.add('open');
 }
-function closeModal(e) { if (e.target === document.getElementById('modalOverlay')) closeModalBtn(); }
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModalBtn();
+}
 function closeModalBtn() {
   document.getElementById('modalOverlay').classList.remove('open');
   pedidoActual = null;
@@ -523,21 +624,39 @@ async function confirmarEntrega() {
   const total = Number(pedidoActual.monto);
   const cobrado = ef + tr;
   const pagado = cobrado >= total * 0.99 ? 'SI' : '';
+
   const btn = document.getElementById('btnConfirmar');
-  btn.textContent = '⏳ Guardando...'; btn.disabled = true;
+  btn.textContent = '⏳ Guardando...';
+  btn.disabled = true;
+
   try {
-    const resp = await fetch(SUPABASE_URL + '/rest/v1/pedidos?id=eq.' + pedidoActual.id, {
-      method: 'PATCH',
-      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ entregado: 'SI', efectivo: ef, transferencia: tr, pagado: pagado, obs: obs || pedidoActual.obs || '' })
-    });
+    const resp = await fetch(
+      SUPABASE_URL + '/rest/v1/pedidos?id=eq.' + pedidoActual.id,
+      {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          entregado: 'SI',
+          efectivo: ef,
+          transferencia: tr,
+          pagado: pagado,
+          obs: obs || pedidoActual.obs || ''
+        })
+      }
+    );
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     // Guardar referencia antes de cerrar (closeModalBtn pone pedidoActual = null)
     const pedidoCerrado = pedidoActual;
     const ubic = ubicacionEntrega;
     closeModalBtn();
-    if (ubic) saveClienteUbicacion(formatNombre(pedidoCerrado.cliente), ubic.lat, ubic.lng);
-    showToast('✅ Entrega registrada' + (ubic ? ' + ubicación guardada' : '') + ' — ' + formatNombre(pedidoCerrado.cliente), 'success');
+    // Guardar ubicación del cliente si fue capturada
+    if (ubic) {
+      saveClienteUbicacion(formatNombre(pedidoCerrado.cliente), ubic.lat, ubic.lng);
+    }
+    showToast('✅ Entrega registrada' + (ubic ? ' — ubicación guardada' : '') + ' — ' + formatNombre(pedidoCerrado.cliente), 'success');
     // Mover a entregados localmente
     const idx = pedidosPendientes.findIndex(p => p.id === pedidoCerrado.id);
     if (idx !== -1) {
@@ -549,10 +668,12 @@ async function confirmarEntrega() {
   } catch (e) {
     showToast('Error al guardar: ' + e.message, 'error');
   } finally {
-    btn.textContent = '✅ Confirmar Entrega'; btn.disabled = false;
+    btn.textContent = '✅ Confirmar Entrega';
+    btn.disabled = false;
   }
 }
 
+// ─── REVERTIR ENTREGA ────────────────────────────────────────────────────────
 async function revertirEntrega(id) {
   if (!confirm('¿Revertir esta entrega? El pedido volverá a Pendientes.')) return;
   try {
@@ -568,6 +689,7 @@ async function revertirEntrega(id) {
       }
     );
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    // Mover localmente de entregados a pendientes
     const idx = pedidosEntregados.findIndex(p => p.id === id);
     if (idx !== -1) {
       const rev = { ...pedidosEntregados[idx], entregado: '', pagado: '', efectivo: 0, transferencia: 0 };
@@ -582,7 +704,7 @@ async function revertirEntrega(id) {
   }
 }
 
-// ─── CAPTURA UBICACIÓN AL ENTREGAR ──────────────────────────────────────────
+// ─── CAPTURA UBICACIÓN AL ENTREGAR ───────────────────────────────────────────
 function capturarUbicacionModal() {
   if (!navigator.geolocation) { showToast('GPS no disponible', 'error'); return; }
   const btn = document.getElementById('btnCapturarGps');
@@ -627,6 +749,175 @@ async function saveClienteUbicacion(nombre, lat, lng) {
   }
 }
 
+// ─── RUTA OPTIMIZADA ─────────────────────────────────────────────────────────
+async function renderRuta() {
+  const container = document.getElementById('listContainer');
+
+  if (!pedidosPendientes.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">🎉</div><p>No hay pedidos pendientes para rutear.</p></div>';
+    return;
+  }
+
+  container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div> Cargando ubicaciones...</div>';
+
+  // Fetch clientes con coordenadas
+  try {
+    const res = await fetch(
+      SUPABASE_URL + '/rest/v1/clientes?select=nombre,lat,lng&lat=not.is.null',
+      { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY } }
+    );
+    const clientes = await res.json();
+    clientesMap = {};
+    clientes.forEach(c => {
+      if (c.lat && c.lng) clientesMap[c.nombre.trim().toLowerCase()] = { lat: c.lat, lng: c.lng };
+    });
+  } catch (e) { clientesMap = {}; }
+
+  // Enriquecer pedidos con coords
+  const stops = pedidosPendientes.map(p => {
+    const key = formatNombre(p.cliente).trim().toLowerCase();
+    const coords = clientesMap[key] || null;
+    return { ...p, lat: coords ? coords.lat : null, lng: coords ? coords.lng : null };
+  });
+
+  const conCoords = stops.filter(s => s.lat);
+  const sinCoords = stops.filter(s => !s.lat);
+
+  if (!currentPos) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:32px 16px">
+        <div style="font-size:52px;margin-bottom:12px">🗺️</div>
+        <p style="color:#6b7280;font-size:15px;margin-bottom:20px">Necesito tu posición actual para calcular el orden óptimo de entrega.</p>
+        <button class="btn-abrir-mapa" onclick="obtenerPosYRutar()">📍 Calcular ruta desde mi posición</button>
+        ${sinCoords.length ? '<p style="color:#9ca3af;font-size:12px;margin-top:14px">⚠️ ' + sinCoords.length + ' cliente' + (sinCoords.length > 1 ? 's' : '') + ' sin ubicación cargada no se incluirán en el mapa.</p>' : ''}
+      </div>`;
+    return;
+  }
+
+  mostrarRuta(stops, conCoords, sinCoords);
+}
+
+function obtenerPosYRutar() {
+  if (!navigator.geolocation) { showToast('GPS no disponible', 'error'); return; }
+  const container = document.getElementById('listContainer');
+  container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div> Obteniendo posición...</div>';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      renderRuta();
+    },
+    err => {
+      const msg = err.code === 1 ? 'Permiso denegado' : 'No se pudo obtener GPS';
+      showToast(msg, 'error');
+      renderRuta();
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+  );
+}
+
+function mostrarRuta(stops, conCoords, sinCoords) {
+  const container = document.getElementById('listContainer');
+
+  // Ordenar por vecino más cercano desde posición actual
+  const sorted = nearestNeighborSort(currentPos, conCoords);
+  const allSorted = [...sorted, ...sinCoords];
+
+  // Construir URL Google Maps (máx 9 paradas intermedias = 10 total)
+  let mapsUrl = null;
+  if (sorted.length > 0) {
+    const limitedStops = sorted.slice(0, 10);
+    const origin = currentPos.lat + ',' + currentPos.lng;
+    const dest = limitedStops[limitedStops.length - 1].lat + ',' + limitedStops[limitedStops.length - 1].lng;
+    const middle = limitedStops.slice(0, -1).map(s => s.lat + ',' + s.lng).join('|');
+    mapsUrl = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin) +
+              '&destination=' + encodeURIComponent(dest) +
+              (middle ? '&waypoints=' + encodeURIComponent(middle) : '') +
+              '&travelmode=driving';
+  }
+
+  const totalDist = sorted.length > 0 ? calcTotalDist(currentPos, sorted) : 0;
+
+  let html = '';
+
+  // Resumen
+  html += `<div style="background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
+    <div class="summary-item"><div class="val">${allSorted.length}</div><div class="lbl">Paradas</div></div>
+    <div class="summary-item"><div class="val">${conCoords.length}</div><div class="lbl">Con GPS</div></div>
+    ${totalDist > 0 ? '<div class="summary-item"><div class="val">' + totalDist.toFixed(1) + ' km</div><div class="lbl">Aprox. total</div></div>' : ''}
+  </div>`;
+
+  // Botones acción
+  window._rutaUrl = mapsUrl;
+  if (mapsUrl) {
+    html += `<button class="btn-abrir-mapa" onclick="window.open(window._rutaUrl,'_blank')">🗺️ Abrir ruta en Google Maps</button>`;
+  }
+  if (sorted.length > 10) {
+    html += `<div class="ruta-warning">⚠️ Google Maps muestra máx. 10 paradas. La ruta tiene ${sorted.length} — se muestran las primeras 10.</div>`;
+  }
+  if (sinCoords.length > 0) {
+    html += `<div class="ruta-warning">⚠️ ${sinCoords.length} cliente${sinCoords.length > 1 ? 's' : ''} sin ubicación no se incluyen en el mapa (aparecen al final de la lista).</div>`;
+  }
+  html += `<button class="btn-recalcular" onclick="currentPos=null;renderRuta()">🔄 Recalcular desde mi posición</button>`;
+
+  // Lista de paradas
+  let prev = currentPos;
+  allSorted.forEach((s, i) => {
+    const tieneCoords = !!s.lat;
+    const dist = tieneCoords && prev ? haversine(prev.lat, prev.lng, s.lat, s.lng) : null;
+    if (tieneCoords) prev = { lat: s.lat, lng: s.lng };
+    const distStr = dist !== null ? (dist < 1 ? (dist * 1000).toFixed(0) + ' m' : dist.toFixed(1) + ' km') : null;
+
+    html += `<div class="ruta-item">
+      <div class="ruta-num ${tieneCoords ? '' : 'sin-coord'}">${i + 1}</div>
+      <div class="ruta-info">
+        <div class="nombre">${formatNombre(s.cliente)}</div>
+        ${distStr ? '<div class="dist">📍 ~' + distStr + ' desde parada anterior</div>' : ''}
+        ${!tieneCoords ? '<div class="sin-gps">⚠️ Sin ubicación — capturá al entregar</div>' : ''}
+        <div class="monto-r">${formatMonto(s.monto)}</div>
+      </div>
+    </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function nearestNeighborSort(origin, stops) {
+  const remaining = [...stops];
+  const sorted = [];
+  let current = origin;
+  while (remaining.length > 0) {
+    let nearestIdx = 0;
+    let nearestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversine(current.lat, current.lng, remaining[i].lat, remaining[i].lng);
+      if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+    }
+    const stop = remaining.splice(nearestIdx, 1)[0];
+    sorted.push(stop);
+    current = { lat: stop.lat, lng: stop.lng };
+  }
+  return sorted;
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function calcTotalDist(origin, stops) {
+  let total = 0;
+  let prev = origin;
+  stops.forEach(s => {
+    total += haversine(prev.lat, prev.lng, s.lat, s.lng);
+    prev = { lat: s.lat, lng: s.lng };
+  });
+  return total;
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────────────────
 function showToast(msg, type = '') {
   const t = document.getElementById('toast');
   t.textContent = msg;
