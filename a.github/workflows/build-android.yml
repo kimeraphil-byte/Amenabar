@@ -1,0 +1,206 @@
+name: Build Android AABs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      KEY_ALIAS: amenabar
+      KEYSTORE_PASS: Amenabar2024!
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Configure Bubblewrap
+        run: |
+          mkdir -p ~/.bubblewrap
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
+
+      - name: Install Android SDK components
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Generate signing keystore
+        run: |
+          keytool -genkey -v \
+            -keystore $GITHUB_WORKSPACE/amenabar.keystore \
+            -alias $KEY_ALIAS \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$KEYSTORE_PASS" \
+            -keypass "$KEYSTORE_PASS" \
+            -dname "CN=Amenabar, O=Distribuidora Amenabar, C=AR" \
+            -noprompt
+
+      # ── Pedidos ────────────────────────────────────────────────
+      - name: Build Pedidos AAB
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: Amenabar2024!
+          BUBBLEWRAP_KEY_PASSWORD: Amenabar2024!
+        run: |
+          mkdir -p build-pedidos && cd build-pedidos
+          cat > twa-manifest.json << 'MANIFEST'
+          {
+            "packageId": "com.amenabar.pedidos",
+            "host": "kimeraphil-byte.github.io",
+            "name": "Pedidos Amenábar",
+            "launcherName": "Pedidos",
+            "display": "standalone",
+            "orientation": "portrait",
+            "themeColor": "#1e40af",
+            "themeColorDark": "#1e40af",
+            "navigationColor": "#1e40af",
+            "navigationColorDark": "#1e40af",
+            "navigationDividerColor": "#000000",
+            "navigationDividerColorDark": "#000000",
+            "backgroundColor": "#ffffff",
+            "startUrl": "/Amenabar/cliente_app.html",
+            "iconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "maskableIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "monochromeIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "appVersion": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://kimeraphil-byte.github.io/Amenabar/manifest-cliente.json",
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "enableNotifications": false,
+            "enableSiteSettingsShortcut": true,
+            "minSdkVersion": 21,
+            "signingMode": "static",
+            "signingKey": { "path": "../amenabar.keystore", "alias": "amenabar" },
+            "fullScopeUrl": "https://kimeraphil-byte.github.io/Amenabar/",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": {},
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "retainedBundles": []
+          }
+          MANIFEST
+          bubblewrap build --skipPwaValidation
+          find . -name "*.aab" | head -1 | xargs -I{} cp {} ../pedidos.aab
+
+      # ── Vendedor ────────────────────────────────────────────────
+      - name: Build Vendedor AAB
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: Amenabar2024!
+          BUBBLEWRAP_KEY_PASSWORD: Amenabar2024!
+        run: |
+          mkdir -p build-vendedor && cd build-vendedor
+          cat > twa-manifest.json << 'MANIFEST'
+          {
+            "packageId": "com.amenabar.vendedor",
+            "host": "kimeraphil-byte.github.io",
+            "name": "Vendedor Amenábar",
+            "launcherName": "Vendedor",
+            "display": "standalone",
+            "orientation": "portrait",
+            "themeColor": "#1e40af",
+            "themeColorDark": "#1e40af",
+            "navigationColor": "#1e40af",
+            "navigationColorDark": "#1e40af",
+            "navigationDividerColor": "#000000",
+            "navigationDividerColorDark": "#000000",
+            "backgroundColor": "#ffffff",
+            "startUrl": "/Amenabar/vendedor_app.html",
+            "iconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "maskableIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "monochromeIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "appVersion": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://kimeraphil-byte.github.io/Amenabar/manifest-vendedor.json",
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "enableNotifications": false,
+            "enableSiteSettingsShortcut": true,
+            "minSdkVersion": 21,
+            "signingMode": "static",
+            "signingKey": { "path": "../amenabar.keystore", "alias": "amenabar" },
+            "fullScopeUrl": "https://kimeraphil-byte.github.io/Amenabar/",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": {},
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "retainedBundles": []
+          }
+          MANIFEST
+          bubblewrap build --skipPwaValidation
+          find . -name "*.aab" | head -1 | xargs -I{} cp {} ../vendedor.aab
+
+      # ── Repartidor ────────────────────────────────────────────────
+      - name: Build Repartidor AAB
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: Amenabar2024!
+          BUBBLEWRAP_KEY_PASSWORD: Amenabar2024!
+        run: |
+          mkdir -p build-repartidor && cd build-repartidor
+          cat > twa-manifest.json << 'MANIFEST'
+          {
+            "packageId": "com.amenabar.repartidor",
+            "host": "kimeraphil-byte.github.io",
+            "name": "Repartidor Amenábar",
+            "launcherName": "Repartidor",
+            "display": "standalone",
+            "orientation": "portrait",
+            "themeColor": "#1e40af",
+            "themeColorDark": "#1e40af",
+            "navigationColor": "#1e40af",
+            "navigationColorDark": "#1e40af",
+            "navigationDividerColor": "#000000",
+            "navigationDividerColorDark": "#000000",
+            "backgroundColor": "#ffffff",
+            "startUrl": "/Amenabar/repartidor_app.html",
+            "iconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "maskableIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "monochromeIconUrl": "https://kimeraphil-byte.github.io/Amenabar/icon-512.png",
+            "appVersion": "1.0.0",
+            "appVersionCode": 1,
+            "shortcuts": [],
+            "generatorApp": "bubblewrap-cli",
+            "webManifestUrl": "https://kimeraphil-byte.github.io/Amenabar/manifest-repartidor.json",
+            "isChromeOSOnly": false,
+            "isMetaQuest": false,
+            "enableNotifications": false,
+            "enableSiteSettingsShortcut": true,
+            "minSdkVersion": 21,
+            "signingMode": "static",
+            "signingKey": { "path": "../amenabar.keystore", "alias": "amenabar" },
+            "fullScopeUrl": "https://kimeraphil-byte.github.io/Amenabar/",
+            "fallbackType": "customtabs",
+            "features": {},
+            "alphaDependencies": {},
+            "fingerprints": [],
+            "additionalTrustedOrigins": [],
+            "retainedBundles": []
+          }
+          MANIFEST
+          bubblewrap build --skipPwaValidation
+          find . -name "*.aab" | head -1 | xargs -I{} cp {} ../repartidor.aab
+
+      - name: Upload AABs and keystore
+        uses: actions/upload-artifact@v4
+        with:
+          name: amenabar-android-release
+          path: |
+            pedidos.aab
+            vendedor.aab
+            repartidor.aab
+            amenabar.keystore
+          retention-days: 30
