@@ -1,4 +1,4 @@
-name: Build Android AABs
+name: Construye AABs de Android
 
 on:
   workflow_dispatch:
@@ -6,12 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    env:
-      KEY_ALIAS: amenabar
-      KEYSTORE_PASS: Amenabar2024!
-      ANDROID_SDK_PATH: /usr/local/lib/android/sdk
-
     steps:
       - uses: actions/checkout@v4
 
@@ -27,10 +21,9 @@ jobs:
       - name: Configure Bubblewrap
         run: |
           mkdir -p ~/.bubblewrap
-          echo "JAVA_HOME=${JAVA_HOME}"
-          echo "ANDROID_HOME=${ANDROID_HOME}"
-          ls /usr/local/lib/android/sdk/ || echo "SDK dir listing failed"
-          echo "{\"jdkPath\":\"${JAVA_HOME}\",\"androidSdkPath\":\"/usr/local/lib/android/sdk\"}" > ~/.bubblewrap/config.json
+          echo '{"jdkPath":"'"$JAVA_HOME"'","androidSdkPath":"/usr/local/lib/android/sdk"}' > ~/.bubblewrap/config.json
+          echo "JAVA_HOME is: $JAVA_HOME"
+          ls -la /usr/local/lib/android/sdk || true
           cat ~/.bubblewrap/config.json
 
       - name: Install Android SDK components
@@ -44,14 +37,7 @@ jobs:
 
       - name: Generate signing keystore
         run: |
-          keytool -genkey -v \
-            -keystore $GITHUB_WORKSPACE/amenabar.keystore \
-            -alias $KEY_ALIAS \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass "$KEYSTORE_PASS" \
-            -keypass "$KEYSTORE_PASS" \
-            -dname "CN=Amenabar, O=Distribuidora Amenabar, C=AR" \
-            -noprompt
+          keytool -genkey -v -keystore $GITHUB_WORKSPACE/amenabar.keystore -alias amenabar -keyalg RSA -keysize 2048 -validity 10000 -storepass "Amenabar2024!" -keypass "Amenabar2024!" -dname "CN=Amenabar, O=Distribuidora Amenabar, C=AR" -noprompt
 
       - name: Build Pedidos AAB
         env:
@@ -60,7 +46,8 @@ jobs:
         run: |
           mkdir -p build-pedidos && cd build-pedidos
           echo '{"packageId":"com.amenabar.pedidos","host":"kimeraphil-byte.github.io","name":"Pedidos Amenábar","launcherName":"Pedidos","display":"standalone","orientation":"portrait","themeColor":"#1e40af","themeColorDark":"#1e40af","navigationColor":"#1e40af","navigationColorDark":"#1e40af","navigationDividerColor":"#000000","navigationDividerColorDark":"#000000","backgroundColor":"#ffffff","startUrl":"/Amenabar/cliente_app.html","iconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","maskableIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","monochromeIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","appVersion":"1.0.0","appVersionCode":1,"shortcuts":[],"generatorApp":"bubblewrap-cli","webManifestUrl":"https://kimeraphil-byte.github.io/Amenabar/manifest-cliente.json","isChromeOSOnly":false,"isMetaQuest":false,"enableNotifications":false,"enableSiteSettingsShortcut":true,"minSdkVersion":21,"signingMode":"static","signingKey":{"path":"../amenabar.keystore","alias":"amenabar"},"fullScopeUrl":"https://kimeraphil-byte.github.io/Amenabar/","fallbackType":"customtabs","features":{},"alphaDependencies":{},"fingerprints":[],"additionalTrustedOrigins":[],"retainedBundles":[]}' > twa-manifest.json
-          yes | bubblewrap build --skipPwaValidation
+          bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json --directory=.
+          bubblewrap build --skipPwaValidation
           find . -name "*.aab" | head -1 | xargs -I{} cp {} ../pedidos.aab
 
       - name: Build Vendedor AAB
@@ -70,7 +57,8 @@ jobs:
         run: |
           mkdir -p build-vendedor && cd build-vendedor
           echo '{"packageId":"com.amenabar.vendedor","host":"kimeraphil-byte.github.io","name":"Vendedor Amenábar","launcherName":"Vendedor","display":"standalone","orientation":"portrait","themeColor":"#1e40af","themeColorDark":"#1e40af","navigationColor":"#1e40af","navigationColorDark":"#1e40af","navigationDividerColor":"#000000","navigationDividerColorDark":"#000000","backgroundColor":"#ffffff","startUrl":"/Amenabar/vendedor_app.html","iconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","maskableIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","monochromeIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","appVersion":"1.0.0","appVersionCode":1,"shortcuts":[],"generatorApp":"bubblewrap-cli","webManifestUrl":"https://kimeraphil-byte.github.io/Amenabar/manifest-vendedor.json","isChromeOSOnly":false,"isMetaQuest":false,"enableNotifications":false,"enableSiteSettingsShortcut":true,"minSdkVersion":21,"signingMode":"static","signingKey":{"path":"../amenabar.keystore","alias":"amenabar"},"fullScopeUrl":"https://kimeraphil-byte.github.io/Amenabar/","fallbackType":"customtabs","features":{},"alphaDependencies":{},"fingerprints":[],"additionalTrustedOrigins":[],"retainedBundles":[]}' > twa-manifest.json
-          yes | bubblewrap build --skipPwaValidation
+          bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json --directory=.
+          bubblewrap build --skipPwaValidation
           find . -name "*.aab" | head -1 | xargs -I{} cp {} ../vendedor.aab
 
       - name: Build Repartidor AAB
@@ -80,7 +68,8 @@ jobs:
         run: |
           mkdir -p build-repartidor && cd build-repartidor
           echo '{"packageId":"com.amenabar.repartidor","host":"kimeraphil-byte.github.io","name":"Repartidor Amenábar","launcherName":"Repartidor","display":"standalone","orientation":"portrait","themeColor":"#1e40af","themeColorDark":"#1e40af","navigationColor":"#1e40af","navigationColorDark":"#1e40af","navigationDividerColor":"#000000","navigationDividerColorDark":"#000000","backgroundColor":"#ffffff","startUrl":"/Amenabar/repartidor_app.html","iconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","maskableIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","monochromeIconUrl":"https://kimeraphil-byte.github.io/Amenabar/icon-512.png","appVersion":"1.0.0","appVersionCode":1,"shortcuts":[],"generatorApp":"bubblewrap-cli","webManifestUrl":"https://kimeraphil-byte.github.io/Amenabar/manifest-repartidor.json","isChromeOSOnly":false,"isMetaQuest":false,"enableNotifications":false,"enableSiteSettingsShortcut":true,"minSdkVersion":21,"signingMode":"static","signingKey":{"path":"../amenabar.keystore","alias":"amenabar"},"fullScopeUrl":"https://kimeraphil-byte.github.io/Amenabar/","fallbackType":"customtabs","features":{},"alphaDependencies":{},"fingerprints":[],"additionalTrustedOrigins":[],"retainedBundles":[]}' > twa-manifest.json
-          yes | bubblewrap build --skipPwaValidation
+          bubblewrap update --skipVersionUpgrade --manifest=twa-manifest.json --directory=.
+          bubblewrap build --skipPwaValidation
           find . -name "*.aab" | head -1 | xargs -I{} cp {} ../repartidor.aab
 
       - name: Upload AABs and keystore
