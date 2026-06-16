@@ -10,6 +10,7 @@ jobs:
     env:
       KEY_ALIAS: amenabar
       KEYSTORE_PASS: Amenabar2024!
+      ANDROID_SDK_PATH: /usr/local/lib/android/sdk
 
     steps:
       - uses: actions/checkout@v4
@@ -26,12 +27,16 @@ jobs:
       - name: Configure Bubblewrap
         run: |
           mkdir -p ~/.bubblewrap
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}' "$JAVA_HOME" "$ANDROID_HOME" > ~/.bubblewrap/config.json
+          echo "JAVA_HOME=${JAVA_HOME}"
+          echo "ANDROID_HOME=${ANDROID_HOME}"
+          ls /usr/local/lib/android/sdk/ || echo "SDK dir listing failed"
+          echo "{\"jdkPath\":\"${JAVA_HOME}\",\"androidSdkPath\":\"/usr/local/lib/android/sdk\"}" > ~/.bubblewrap/config.json
+          cat ~/.bubblewrap/config.json
 
       - name: Install Android SDK components
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Generate signing keystore
         run: |
